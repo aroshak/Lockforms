@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-    darkMode: 'media', // Use system preference automatically
+    darkMode: 'media',
     content: [
         "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
         "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -11,9 +11,7 @@ const config: Config = {
         container: {
             center: true,
             padding: "2rem",
-            screens: {
-                "2xl": "1400px",
-            },
+            screens: { "2xl": "1400px" },
         },
         extend: {
             fontFamily: {
@@ -29,9 +27,9 @@ const config: Config = {
                 primary: {
                     DEFAULT: "hsl(var(--primary))",
                     foreground: "hsl(var(--primary-foreground))",
-                    400: '#9f7aea', // Aether Violet Light
-                    500: '#8257e5', // Aether Violet Main
-                    600: '#6b46c1', // Aether Violet Dark
+                    400: '#9f7aea',
+                    500: '#8257e5',
+                    600: '#6b46c1',
                 },
                 secondary: {
                     DEFAULT: "hsl(var(--secondary))",

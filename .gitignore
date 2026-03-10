@@ -62,8 +62,9 @@ tools/output/
 .claude/
 .cursor/
 .cursorrules
+.shared_agents/
 
-# MCP Server configurations (Model Context Protocol)
+# MCP Server configurations
 .claude.json
 .claude.json.backup
 mcp.json
@@ -73,10 +74,10 @@ mcp-config.json
 session-data/
 .ai-sessions/
 
-# Shared agent documentation (for collaborative AI development)
+# Shared agent documentation
 shared_agents/
 
-# Documentation folder (project docs, not for repo)
+# Documentation folder
 Docs/
 docs/internal/
 
@@ -122,12 +123,12 @@ src/lib/LockForms.txt
 *.log
 logs/
 
-# Database files (if using SQLite locally)
+# Database files
 *.db
 *.sqlite
 *.sqlite3
 
-# Docker volumes (if persisted locally)
+# Docker volumes
 .docker/
 docker-data/
 
@@ -148,21 +149,9 @@ dist/
 .parcel-cache/
 .turbo/
 
-# Lock files (optional - some teams commit these)
-# package-lock.json
-# yarn.lock
-# pnpm-lock.yaml
-
 # Editor directories
 .history/
 .vscode-test/
-
-# Sentry
-.sentryclirc
-
-# Cypress
-cypress/videos/
-cypress/screenshots/
 
 # Playwright
 playwright-report/
@@ -177,35 +166,21 @@ coverage/
 .env.production
 .env.test
 
-# ====================================
-# Internal/Customer-Sensitive Files
-# ====================================
-
-# Deployment scripts and configs (internal only)
+# Deployment scripts and configs
 deploy/
 deployment/
 .deployment/
 deploy.sh
 deploy-*.sh
-k8s-secrets/
-helm-values-*.yaml
 
-# Analytics and monitoring configs
-analytics/
-.analytics/
-monitoring/
-sentry.properties
-datadog.yaml
-newrelic.yml
-
-# Customer data (should never be in repo)
+# Customer data
 customer-data/
 customers/
 .customers/
 *-customer-data.json
 sales/
 
-# Internal tools and scripts
+# Internal tools
 internal-tools/
 scripts/internal/
 .internal/
@@ -215,18 +190,12 @@ scripts/internal/
 *.profile
 *.cpuprofile
 *.heapprofile
-flamegraph*.svg
 
 # Screenshots and recordings (testing/demos)
 screenshots/
 recordings/
-screen-recordings/
-*.mov
-*.mp4
-*.avi
-*.webm
 
-# Database dumps and exports
+# Database dumps
 dumps/
 exports/
 *.dump
@@ -234,7 +203,7 @@ exports/
 *.sql.bz2
 backups/
 
-# API keys and credentials (belt and suspenders)
+# API keys and credentials
 secrets/
 .secrets/
 credentials/
@@ -246,18 +215,3 @@ api-keys*.json
 licenses/
 customer-licenses/
 *.lic
-
-# Support tickets and correspondence
-support/
-tickets/
-correspondence/
-
-# Vendor/partner information
-vendors/
-partners/
-nda/
-
-# Financial information
-invoices/
-contracts/
-pricing/
