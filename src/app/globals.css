@@ -1,0 +1,191 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Pure Midnight Palette - Zero Trust, Zero Distraction */
+    --background: 222 47% 6%;
+    /* #0B0E14 - Deepest Slate */
+    --foreground: 210 40% 98%;
+    /* Soft White */
+
+    --card: 222 47% 7%;
+    /* Slightly lighter than bg */
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 6%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 252 87% 67%;
+    /* Electric Indigo #8257e5 */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 252 87% 67%;
+
+    --radius: 0.75rem;
+
+    /* Aether Custom Vars */
+    --font-inter: 'Inter', sans-serif;
+    --font-space: 'Space Grotesk', sans-serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1, "ss01" 1;
+    /* Modern Geometric Features */
+    background-image:
+      radial-gradient(circle at 15% 50%, rgba(130, 87, 229, 0.08), transparent 40%),
+      radial-gradient(circle at 85% 30%, rgba(130, 87, 229, 0.05), transparent 40%);
+    background-attachment: fixed;
+  }
+
+  /* Fluid Typography */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display tracking-tight text-white;
+  }
+
+  h1 {
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+    line-height: 1.1;
+  }
+}
+
+@layer utilities {
+
+  /* Glassmorphism System */
+  .glass {
+    @apply bg-white/5 backdrop-blur-lg border border-white/10 shadow-lg;
+  }
+
+  .glass-hover {
+    @apply hover:bg-white/10 transition-colors duration-300;
+  }
+
+  .glass-card {
+    @apply bg-[#0f1219]/60 backdrop-blur-2xl border border-white/5 shadow-2xl;
+  }
+
+  .glass-input {
+    @apply bg-white/5 border-white/10 text-white placeholder:text-muted-foreground/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all duration-300;
+  }
+
+  /* Text Effects */
+  .text-glow {
+    color: theme('colors.primary.400');
+    text-shadow: 0 0 30px rgba(130, 87, 229, 0.6);
+  }
+
+  /* Animation Utilities */
+  .animate-breathing {
+    animation: breathing 10s ease-in-out infinite;
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+@keyframes breathing {
+
+  0%,
+  100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===================================
+   EMBED MODE STYLES
+   =================================== */
+
+.embed-mode {
+  min-height: auto;
+  background: transparent;
+  padding: 0;
+}
+
+.embed-mode.transparent {
+  background: transparent !important;
+}
+
+.embed-mode.transparent * {
+  background: transparent !important;
+}
+
+.embed-mode.hide-branding header,
+.embed-mode.hide-branding footer {
+  display: none !important;
+}
+
+.embed-mode form {
+  min-height: auto;
+}
+
+/* ===================================
+   MODAL ANIMATIONS
+   =================================== */
+
+@keyframes modalBackdropIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalPanelIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

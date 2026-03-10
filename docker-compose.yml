@@ -1,0 +1,79 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: lockforms-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-lockforms}:${POSTGRES_PASSWORD:-lockforms_dev_pwd}@db:5432/${POSTGRES_DB:-lockforms}?schema=public
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+      - LICENSE_KEY=${LICENSE_KEY:-}
+    volumes:
+      - ./src:/app/src:ro
+      - ./public:/app/public:ro
+      - ./prisma:/app/prisma
+      - ./.env:/app/.env:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - lockforms-internal
+    # Security: Read-only filesystem where possible
+    read_only: false
+    # Security: Drop unnecessary capabilities
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    # Security: No privilege escalation
+    security_opt:
+      - no-new-privileges:true
+
+  db:
+    image: postgres:15-alpine
+    container_name: lockforms-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lockforms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lockforms_dev_pwd}
+      POSTGRES_DB: ${POSTGRES_DB:-lockforms}
+    volumes:
+      - lockforms-db-data:/var/lib/postgresql/data
+    networks:
+      - lockforms-internal
+    # Security: Health check to ensure DB is ready
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U lockforms -d lockforms" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Security: Drop unnecessary capabilities
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - FOWNER
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  lockforms-internal:
+    driver: bridge
+    # Security: Internal network only
+    internal: false
+
+volumes:
+  lockforms-db-data:
+    driver: local

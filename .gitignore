@@ -1,0 +1,263 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Testing
+coverage
+
+# Next.js
+.next/
+out/
+
+# Production
+build
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files (keep .env.example)
+.env*.local
+.env
+!.env.example
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Private keys - NEVER commit
+*.key
+*.pem
+private*.json
+license-private*
+
+# Tools output
+tools/output/
+
+# ====================================
+# Agentic Documentation & Development
+# ====================================
+
+# AI Agent configuration and rules
+.agent/
+.claude/
+.cursor/
+.cursorrules
+
+# MCP Server configurations (Model Context Protocol)
+.claude.json
+.claude.json.backup
+mcp.json
+mcp-config.json
+
+# AI session data
+session-data/
+.ai-sessions/
+
+# Shared agent documentation (for collaborative AI development)
+shared_agents/
+
+# Documentation folder (project docs, not for repo)
+Docs/
+docs/internal/
+
+# Development documentation files
+CLAUDE.md
+*_FIX.md
+*_FIXES.md
+*_REPORT.md
+*_SUMMARY.md
+FIXES_APPLIED.md
+FORM_VIEWING_FIX.md
+TEST_REPORT.md
+GIT_STATUS.md
+GITIGNORE_UPDATE_SUMMARY.md
+.gitignore-summary.md
+
+# Internal development notes
+NOTES.md
+TODO.md
+ROADMAP.md
+MEETING_NOTES.md
+DECISIONS.md
+SCRATCH.md
+INTERNAL*.md
+
+# Temporary files
+temp_*
+*.tmp
+*~
+*.bak
+nul
+
+# Test output files
+test_output*
+
+# Internal gitignore docs
+GITIGNORE_COMPLETE.md
+
+# Debug DOM dumps
+src/lib/LockForms.txt
+
+# Log files
+*.log
+logs/
+
+# Database files (if using SQLite locally)
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker volumes (if persisted locally)
+.docker/
+docker-data/
+
+# Backup files
+*.backup
+backup/
+
+# Test data
+test-data/
+fixtures/
+
+# Generated files
+generated/
+dist/
+
+# Cache directories
+.cache/
+.parcel-cache/
+.turbo/
+
+# Lock files (optional - some teams commit these)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Editor directories
+.history/
+.vscode-test/
+
+# Sentry
+.sentryclirc
+
+# Cypress
+cypress/videos/
+cypress/screenshots/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Environment-specific
+.env.development
+.env.production
+.env.test
+
+# ====================================
+# Internal/Customer-Sensitive Files
+# ====================================
+
+# Deployment scripts and configs (internal only)
+deploy/
+deployment/
+.deployment/
+deploy.sh
+deploy-*.sh
+k8s-secrets/
+helm-values-*.yaml
+
+# Analytics and monitoring configs
+analytics/
+.analytics/
+monitoring/
+sentry.properties
+datadog.yaml
+newrelic.yml
+
+# Customer data (should never be in repo)
+customer-data/
+customers/
+.customers/
+*-customer-data.json
+sales/
+
+# Internal tools and scripts
+internal-tools/
+scripts/internal/
+.internal/
+
+# Performance profiling
+*.prof
+*.profile
+*.cpuprofile
+*.heapprofile
+flamegraph*.svg
+
+# Screenshots and recordings (testing/demos)
+screenshots/
+recordings/
+screen-recordings/
+*.mov
+*.mp4
+*.avi
+*.webm
+
+# Database dumps and exports
+dumps/
+exports/
+*.dump
+*.sql.gz
+*.sql.bz2
+backups/
+
+# API keys and credentials (belt and suspenders)
+secrets/
+.secrets/
+credentials/
+*.credentials
+*-credentials.json
+api-keys*.json
+
+# License keys (customer licenses)
+licenses/
+customer-licenses/
+*.lic
+
+# Support tickets and correspondence
+support/
+tickets/
+correspondence/
+
+# Vendor/partner information
+vendors/
+partners/
+nda/
+
+# Financial information
+invoices/
+contracts/
+pricing/

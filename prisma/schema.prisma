@@ -1,0 +1,103 @@
+// LockForms.io Database Schema
+// Air-gapped enterprise form builder
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Form Definition
+// ============================================
+model Form {
+  id          String   @id @default(cuid())
+  slug        String   @unique @db.VarChar(100)
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  
+  // The form structure: questions, logic, variables
+  schema      Json
+  
+  // Form settings: theme, privacy, notifications
+  settings    Json?
+  
+  // Publication status
+  isPublished Boolean  @default(false)
+  enabled     Boolean  @default(true)
+  
+  // Version tracking for updates
+  version     Int      @default(1)
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  submissions Submission[]
+  
+  @@index([slug])
+  @@index([isPublished, enabled])
+}
+
+// ============================================
+// Form Submission
+// ============================================
+model Submission {
+  id          String   @id @default(uuid())
+  
+  // Form reference
+  formId      String
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  
+  // The actual answers: { "questionId": "answer" }
+  answers     Json
+  
+  // Metadata: browser, IP (hashed), duration, etc.
+  metadata    Json?
+  
+  // Form version at time of submission
+  formVersion Int      @default(1)
+  
+  // Timestamps
+  submittedAt DateTime @default(now())
+  
+  @@index([formId])
+  @@index([submittedAt])
+}
+
+// ============================================
+// System Configuration
+// ============================================
+model SystemConfig {
+  key       String   @id @db.VarChar(100)
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Audit Log (Security tracking)
+// ============================================
+model AuditLog {
+  id        String   @id @default(uuid())
+  
+  // What happened
+  action    String   @db.VarChar(50)
+  entity    String   @db.VarChar(50)
+  entityId  String?  @db.VarChar(100)
+  
+  // Who did it (hashed identifier)
+  actorHash String?  @db.VarChar(64)
+  
+  // Additional context
+  details   Json?
+  
+  // When
+  createdAt DateTime @default(now())
+  
+  @@index([action, entity])
+  @@index([createdAt])
+}
