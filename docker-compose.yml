@@ -23,16 +23,13 @@ services:
         condition: service_healthy
     networks:
       - lockforms-internal
-    # Security: Read-only filesystem where possible
     read_only: false
-    # Security: Drop unnecessary capabilities
     cap_drop:
       - ALL
     cap_add:
       - CHOWN
       - SETUID
       - SETGID
-    # Security: No privilege escalation
     security_opt:
       - no-new-privileges:true
 
@@ -50,13 +47,11 @@ services:
       - lockforms-db-data:/var/lib/postgresql/data
     networks:
       - lockforms-internal
-    # Security: Health check to ensure DB is ready
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U lockforms -d lockforms" ]
       interval: 5s
       timeout: 5s
       retries: 10
-    # Security: Drop unnecessary capabilities
     cap_drop:
       - ALL
     cap_add:
@@ -71,7 +66,6 @@ services:
 networks:
   lockforms-internal:
     driver: bridge
-    # Security: Internal network only
     internal: false
 
 volumes:

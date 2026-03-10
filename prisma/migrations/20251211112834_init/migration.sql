@@ -51,23 +51,11 @@ CREATE TABLE "AuditLog" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Form_slug_key" ON "Form"("slug");
-
--- CreateIndex
 CREATE INDEX "Form_slug_idx" ON "Form"("slug");
-
--- CreateIndex
 CREATE INDEX "Form_isPublished_enabled_idx" ON "Form"("isPublished", "enabled");
-
--- CreateIndex
 CREATE INDEX "Submission_formId_idx" ON "Submission"("formId");
-
--- CreateIndex
 CREATE INDEX "Submission_submittedAt_idx" ON "Submission"("submittedAt");
-
--- CreateIndex
 CREATE INDEX "AuditLog_action_entity_idx" ON "AuditLog"("action", "entity");
-
--- CreateIndex
 CREATE INDEX "AuditLog_createdAt_idx" ON "AuditLog"("createdAt");
 
 -- AddForeignKey
