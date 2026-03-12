@@ -1,5 +1,5 @@
 // LockForms.io Database Schema
-// Air-gapped enterprise form builder
+// Air-gapped enterprise form builder — Native Auth
 
 generator client {
   provider = "prisma-client-js"
@@ -11,6 +11,159 @@ datasource db {
 }
 
 // ============================================
+// Identity & Authentication (NextAuth Adapter)
+// ============================================
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  passwordHash   String?   // Null for SSO-only users
+  name           String?
+  firstName      String?
+  lastName       String?
+  image          String?
+  emailVerified  DateTime?
+  isActive       Boolean   @default(true)
+  isSSOUser      Boolean   @default(false)
+
+  // Multi-tenant scoping
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  // Account security
+  failedLoginAttempts Int       @default(0)
+  lastFailedLoginAt   DateTime?
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIP         String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations (NextAuth)
+  accounts  Account[]
+  sessions  Session[]
+
+  // Relations (App)
+  roles     UserRole[]
+  auditLogs AuditLog[]
+
+  @@index([email, isActive])
+  @@index([organizationId])
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  users       User[]
+  forms       Form[]
+  submissions Submission[]
+
+  @@index([slug])
+}
+
+// NextAuth required models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================
+// Role-Based Access Control (RBAC)
+// ============================================
+
+model Role {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  isSystem    Boolean   @default(false)
+
+  // Permissions stored as JSONB
+  // e.g. [{ "resource": "forms", "action": "create", "scope": "all" }]
+  permissions Json
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  users       UserRole[]
+
+  @@index([name])
+}
+
+model UserRole {
+  id         String    @id @default(cuid())
+  userId     String
+  roleId     String
+  assignedBy String?
+  assignedAt DateTime  @default(now())
+  expiresAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+// ============================================
+// Security Policies
+// ============================================
+
+model SecurityPolicy {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+// ============================================
 // Form Definition
 // ============================================
 model Form {
@@ -18,29 +171,34 @@ model Form {
   slug        String   @unique @db.VarChar(100)
   title       String   @db.VarChar(255)
   description String?  @db.Text
-  
+
+  // Tenant scoping
+  organizationId String?  @db.VarChar(255)
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
   // The form structure: questions, logic, variables
   schema      Json
-  
+
   // Form settings: theme, privacy, notifications
   settings    Json?
-  
+
   // Publication status
   isPublished Boolean  @default(false)
   enabled     Boolean  @default(true)
-  
+
   // Version tracking for updates
   version     Int      @default(1)
-  
+
   // Timestamps
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   // Relations
   submissions Submission[]
-  
+
   @@index([slug])
   @@index([isPublished, enabled])
+  @@index([organizationId])
 }
 
 // ============================================
@@ -48,25 +206,30 @@ model Form {
 // ============================================
 model Submission {
   id          String   @id @default(uuid())
-  
+
   // Form reference
   formId      String
   form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
-  
+
+  // Tenant scoping
+  organizationId String?  @db.VarChar(255)
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
   // The actual answers: { "questionId": "answer" }
   answers     Json
-  
+
   // Metadata: browser, IP (hashed), duration, etc.
   metadata    Json?
-  
+
   // Form version at time of submission
   formVersion Int      @default(1)
-  
+
   // Timestamps
   submittedAt DateTime @default(now())
-  
+
   @@index([formId])
   @@index([submittedAt])
+  @@index([organizationId])
 }
 
 // ============================================
@@ -83,21 +246,24 @@ model SystemConfig {
 // ============================================
 model AuditLog {
   id        String   @id @default(uuid())
-  
+
   // What happened
   action    String   @db.VarChar(50)
   entity    String   @db.VarChar(50)
   entityId  String?  @db.VarChar(100)
-  
-  // Who did it (hashed identifier)
+
+  // Who did it
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   actorHash String?  @db.VarChar(64)
-  
+
   // Additional context
   details   Json?
-  
+
   // When
   createdAt DateTime @default(now())
-  
+
   @@index([action, entity])
   @@index([createdAt])
+  @@index([userId])
 }

@@ -46,7 +46,7 @@ const EmailAnswerSchema = z.string()
 
 // Number Answer Schema (dynamic based on question min/max)
 // Note: HTML input elements return string values, so we coerce to number
-const createNumberSchema = (min?: number, max?: number): z.ZodEffects<z.ZodNumber, number, unknown> => {
+const createNumberSchema = (min?: number, max?: number) => {
     let schema = z.coerce.number({
         invalid_type_error: 'Please enter a valid number',
         required_error: 'Number is required'
@@ -69,7 +69,7 @@ const TextAnswerSchema = z.string().max(10000, 'Text is too long');
 const ParagraphAnswerSchema = z.string().max(50000, 'Text is too long');
 
 // Choice Answer Schema (single selection)
-const createChoiceSchema = (options: { value: string }[]): z.ZodString => {
+const createChoiceSchema = (options: { value: string }[]) => {
     const allowedValues = options.map(opt => opt.value);
     return z.string().refine(
         (val) => allowedValues.includes(val),
@@ -78,7 +78,7 @@ const createChoiceSchema = (options: { value: string }[]): z.ZodString => {
 };
 
 // Checkbox Answer Schema (multiple selections)
-const createCheckboxSchema = (options: { value: string }[]): z.ZodArray<z.ZodString> => {
+const createCheckboxSchema = (options: { value: string }[]) => {
     const allowedValues = options.map(opt => opt.value);
     return z.array(z.string()).refine(
         (values) => values.every(val => allowedValues.includes(val)),

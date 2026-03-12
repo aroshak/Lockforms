@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Plus, Trash2, GripVertical, ChevronUp, ChevronDown, Image as ImageIcon } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Image as ImageIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -12,7 +12,6 @@ import {
     PointerSensor,
     useSensor,
     useSensors,
-    DragEndEvent
 } from '@dnd-kit/core';
 import {
     arrayMove,
@@ -42,8 +41,8 @@ function SortableOptionItem({
     totalCount,
     onUpdate,
     onRemove,
-    onMoveUp,
-    onMoveDown
+    onMoveUp: _onMoveUp,
+    onMoveDown: _onMoveDown,
 }: {
     option: Option;
     index: number;

@@ -16,7 +16,7 @@ interface SharePanelProps {
     initialSettings?: SharingSettings;
 }
 
-export function SharePanel({ formId, formSlug, initialSettings }: SharePanelProps) {
+export function SharePanel({ formId: _formId, formSlug, initialSettings }: SharePanelProps) {
     const [activeTab, setActiveTab] = useState<'link' | 'embed'>('link');
     const [accessLevel, setAccessLevel] = useState<AccessLevel>(initialSettings?.accessLevel || 'public');
     const [allowEmbedding, setAllowEmbedding] = useState(initialSettings?.allowEmbedding || false);

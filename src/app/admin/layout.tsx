@@ -1,49 +1,68 @@
 import Link from "next/link";
-import { LayoutDashboard, Settings, LogOut, PlusCircle } from "lucide-react";
+import { LayoutDashboard, Settings, PlusCircle, Users, ShieldCheck } from "lucide-react";
+import AuthProvider from "@/components/AuthProvider";
+import UserMenu from "@/components/UserMenu";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     return (
-        <div className="flex min-h-screen">
-            {/* Sidebar */}
-            <aside className="w-64 border-r border-white/10 bg-black/20 backdrop-blur-xl hidden md:flex flex-col fixed inset-y-0 z-50">
-                <div className="p-6 pl-8">
-                    <h1 className="text-2xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-400 to-indigo-400 tracking-tight">
-                        LockForms
-                    </h1>
-                    <p className="text-xs text-primary-200/50 mt-1 uppercase tracking-wider font-semibold">Enterprise Console</p>
-                </div>
+        <AuthProvider>
+            <div className="flex min-h-screen bg-background text-foreground font-display selection:bg-primary/30">
+                {/* Side Navigation Bar */}
+                <aside className="w-64 border-r border-border flex flex-col h-screen sticky top-0 bg-background z-50 hidden md:flex">
+                    <div className="p-6 flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary/20 text-primary rounded-lg flex items-center justify-center">
+                            <ShieldCheck className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h1 className="font-bold text-lg leading-tight text-white tracking-tight">LockForms</h1>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Zero Trust</p>
+                        </div>
+                    </div>
 
-                <nav className="flex-1 px-4 space-y-2 mt-4">
-                    <Link href="/admin" className="flex items-center gap-3 px-4 py-3 rounded-lg bg-primary-500/10 text-primary-100 shadow-[0_0_15px_rgba(130,87,229,0.1)] border border-primary-500/20 transition-all hover:bg-primary-500/20 hover:shadow-[0_0_20px_rgba(130,87,229,0.3)] group">
-                        <LayoutDashboard className="w-5 h-5 text-primary-400 group-hover:scale-110 transition-transform" />
-                        <span className="font-medium">Dashboard</span>
-                    </Link>
+                    <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
+                        <Link href="/admin" className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors bg-primary/10 text-primary border-r-2 border-primary">
+                            <LayoutDashboard className="w-5 h-5" />
+                            Dashboard
+                        </Link>
 
-                    <Link href="/admin/builder" className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:text-white hover:bg-white/5 transition-all group">
-                        <PlusCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                        <span className="font-medium">New Form</span>
-                    </Link>
-                </nav>
+                        <Link href="/admin/builder" className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors hover:bg-white/5 text-muted-foreground hover:text-white">
+                            <PlusCircle className="w-5 h-5" />
+                            Form Builder
+                        </Link>
 
-                <div className="p-6 border-t border-white/5">
-                    <Link href="/api/auth/signout" className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-red-400 cursor-pointer transition-colors">
-                        <LogOut className="w-4 h-4" />
-                        Sign Out
-                    </Link>
-                </div>
-            </aside>
+                        <Link href="/admin/users" className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors hover:bg-white/5 text-muted-foreground hover:text-white">
+                            <Users className="w-5 h-5" />
+                            Audience / Users
+                        </Link>
 
-            {/* Main Content Area */}
-            <main className="flex-1 md:ml-64 relative min-h-screen">
-                {/* Top Bar Mobile (visible only on small screens) */}
-                <div className="md:hidden h-16 border-b border-white/10 flex items-center px-4 bg-black/20 backdrop-blur-md sticky top-0 z-40">
-                    <span className="font-display font-bold text-lg">LockForms</span>
-                </div>
+                        <div className="pt-4 pb-2">
+                            <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Account</p>
+                        </div>
 
-                <div className="p-8 max-w-7xl mx-auto animate-fade-in-up">
-                    {children}
-                </div>
-            </main>
-        </div>
-    )
+                        <Link href="/admin/settings" className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors hover:bg-white/5 text-muted-foreground hover:text-white">
+                            <Settings className="w-5 h-5" />
+                            Settings
+                        </Link>
+                    </nav>
+
+                    <div className="p-4 border-t border-border mt-auto">
+                        <UserMenu />
+                    </div>
+                </aside>
+
+                {/* Main Content */}
+                <main className="flex-1 flex flex-col min-w-0 overflow-y-auto min-h-screen">
+                    {/* Top Bar Mobile */}
+                    <div className="md:hidden h-16 border-b border-border flex items-center px-4 bg-background/80 backdrop-blur-md sticky top-0 z-40">
+                        <ShieldCheck className="w-5 h-5 text-primary mr-2" />
+                        <span className="font-display font-bold text-lg text-white">LockForms</span>
+                    </div>
+
+                    <div className="flex-1">
+                        {children}
+                    </div>
+                </main>
+            </div>
+        </AuthProvider>
+    );
 }

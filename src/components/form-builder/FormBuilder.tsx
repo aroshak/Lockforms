@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
     Save, Eye, Type, Mail, Hash, AlignLeft, Calendar, Clock,
-    CircleDot, CheckSquare, ChevronDown, Star, Upload, PenTool, Minus, Search, MessageSquare, BarChart2, Link as LinkIcon, Image as ImageIcon, Share2
+    CircleDot, CheckSquare, ChevronDown, Star, Upload, PenTool, Minus, MessageSquare, BarChart2, Link as LinkIcon, Image as ImageIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import { generateId, cn } from '@/lib/utils';
@@ -279,7 +279,7 @@ export function FormBuilder({ formId }: { formId?: string }) {
                 {activeView === 'share' && (
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                         {formSlug ? (
-                            <SharePanel formId={formId} formSlug={formSlug} />
+                            <SharePanel formId={formId!} formSlug={formSlug} />
                         ) : (
                             <div className="p-8 text-center">
                                 <p className="text-muted-foreground text-sm mb-4">Save your form to generate a share link.</p>
