@@ -67,9 +67,9 @@ export function EmbedCustomizer({ settings, onChange }: EmbedCustomizerProps) {
     };
 
     return (
-        <div className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="space-y-4 p-4 glass rounded-xl border border-primary/10">
+            <h3 className="font-medium text-white flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                 </svg>
                 Embed Customization
@@ -78,13 +78,13 @@ export function EmbedCustomizer({ settings, onChange }: EmbedCustomizerProps) {
             {/* Dimensions */}
             <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">
                         Width
                     </label>
                     <select
                         value={settings.customWidth === 'full' ? 'full' : settings.customWidth || 600}
                         onChange={(e) => handleWidthChange(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        className="w-full px-3 py-2 bg-primary/5 border border-primary/20 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm text-white"
                     >
                         <option value="full">Full Width (100%)</option>
                         <option value="400">400px</option>
@@ -95,13 +95,13 @@ export function EmbedCustomizer({ settings, onChange }: EmbedCustomizerProps) {
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">
                         Height
                     </label>
                     <select
                         value={settings.customHeight || 500}
                         onChange={(e) => handleHeightChange(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        className="w-full px-3 py-2 bg-primary/5 border border-primary/20 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm text-white"
                     >
                         <option value="400">400px</option>
                         <option value="500">500px (Default)</option>
@@ -121,10 +121,10 @@ export function EmbedCustomizer({ settings, onChange }: EmbedCustomizerProps) {
                         id="show-branding"
                         checked={settings.showBranding ?? true}
                         onChange={(e) => onChange({ ...settings, showBranding: e.target.checked })}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="w-4 h-4 rounded border-primary/20 bg-primary/5 text-primary focus:ring-primary/50"
                     />
-                    <label htmlFor="show-branding" className="text-sm text-gray-700 cursor-pointer">
-                        Show "Powered by LockForms" branding
+                    <label htmlFor="show-branding" className="text-sm text-muted-foreground cursor-pointer">
+                        Show &ldquo;Powered by LockForms&rdquo; branding
                     </label>
                 </div>
 
@@ -134,21 +134,21 @@ export function EmbedCustomizer({ settings, onChange }: EmbedCustomizerProps) {
                         id="transparent"
                         checked={settings.transparentBackground ?? false}
                         onChange={(e) => onChange({ ...settings, transparentBackground: e.target.checked })}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="w-4 h-4 rounded border-primary/20 bg-primary/5 text-primary focus:ring-primary/50"
                     />
-                    <label htmlFor="transparent" className="text-sm text-gray-700 cursor-pointer">
+                    <label htmlFor="transparent" className="text-sm text-muted-foreground cursor-pointer">
                         Transparent background
                     </label>
                 </div>
             </div>
 
             {/* Domain Whitelist */}
-            <div className="space-y-2 pt-3 border-t border-gray-300">
+            <div className="space-y-2 pt-3 border-t border-primary/10">
                 <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">
                         Allowed Domains (optional)
                     </label>
-                    <p className="text-xs text-gray-500 mb-2">
+                    <p className="text-xs text-muted-foreground/60 mb-2">
                         Leave empty to allow embedding from any domain
                     </p>
                 </div>
@@ -164,18 +164,18 @@ export function EmbedCustomizer({ settings, onChange }: EmbedCustomizerProps) {
                             }}
                             onKeyDown={(e) => e.key === 'Enter' && addDomain()}
                             placeholder="example.com"
-                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm ${
-                                domainError ? 'border-red-500' : 'border-gray-300'
+                            className={`w-full px-3 py-2 bg-primary/5 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm text-white placeholder:text-muted-foreground/50 ${
+                                domainError ? 'border-red-500' : 'border-primary/20'
                             }`}
                         />
                         {domainError && (
-                            <p className="text-xs text-red-600 mt-1">{domainError}</p>
+                            <p className="text-xs text-red-400 mt-1">{domainError}</p>
                         )}
                     </div>
                     <button
                         type="button"
                         onClick={addDomain}
-                        className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-1"
+                        className="px-3 py-2 bg-primary text-white rounded-md hover:brightness-110 transition-all flex items-center gap-1 shadow-lg shadow-primary/20"
                     >
                         <Plus className="w-4 h-4" />
                         Add
@@ -187,13 +187,13 @@ export function EmbedCustomizer({ settings, onChange }: EmbedCustomizerProps) {
                         {settings.allowedDomains.map((domain) => (
                             <div
                                 key={domain}
-                                className="flex items-center justify-between p-2 bg-white rounded border border-gray-200 text-sm"
+                                className="flex items-center justify-between p-2 glass rounded-lg text-sm"
                             >
-                                <span className="font-mono text-gray-700">{domain}</span>
+                                <span className="font-mono text-white/80">{domain}</span>
                                 <button
                                     type="button"
                                     onClick={() => removeDomain(domain)}
-                                    className="text-gray-400 hover:text-red-500 transition-colors"
+                                    className="text-muted-foreground hover:text-red-400 transition-colors"
                                 >
                                     <X className="w-4 h-4" />
                                 </button>

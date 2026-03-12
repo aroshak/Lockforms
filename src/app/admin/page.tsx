@@ -36,7 +36,7 @@ function formatTimeAgo(date: Date): string {
     return `${Math.floor(days / 30)}mo ago`;
 }
 
-function getQuestionCount(schema: any): number {
+function getQuestionCount(schema: unknown): number {
     if (Array.isArray(schema)) return schema.length;
     return 0;
 }
@@ -45,7 +45,7 @@ function getQuestionCount(schema: any): number {
 function getCardAccent(title: string): string {
     const accents = [
         'from-violet-500/20 to-indigo-500/10',
-        'from-cyan-500/20 to-blue-500/10',
+        'from-primary-500/20 to-primary-400/10',
         'from-emerald-500/20 to-teal-500/10',
         'from-amber-500/20 to-orange-500/10',
         'from-rose-500/20 to-pink-500/10',
@@ -61,38 +61,58 @@ function getCardAccent(title: string): string {
 export default async function AdminDashboard() {
     const forms = await getForms();
 
+    const totalResponses = forms.reduce((sum, f) => sum + f._count.submissions, 0);
+    const publishedCount = forms.filter(f => f.isPublished).length;
+    const draftCount = forms.filter(f => !f.isPublished).length;
+
     return (
         <div className="space-y-8">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-display font-bold text-white tracking-tight">Your Forms</h2>
+                    <h2 className="text-3xl font-bold text-white tracking-tight">Your Forms</h2>
                     <p className="text-muted-foreground mt-1">Manage and monitor your secure forms.</p>
                 </div>
                 <Link href="/admin/builder">
-                    <Button className="shadow-lg shadow-primary-500/20 rounded-xl px-6 h-11 font-semibold">
+                    <Button className="bg-primary text-white shadow-lg shadow-primary/20 hover:brightness-110 rounded-xl px-6 h-11 font-semibold transition-all">
                         <Plus className="mr-2 h-4 w-4" /> Create Form
                     </Button>
                 </Link>
             </div>
 
-            {/* Stats Bar */}
+            {/* Stats Bar — glass-card with left accent border */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-5 py-4">
-                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Total Forms</p>
-                    <p className="text-2xl font-bold text-white mt-1">{forms.length}</p>
+                {/* Total Forms */}
+                <div className="glass-card rounded-xl overflow-hidden flex">
+                    <div className="w-1 bg-primary flex-shrink-0" />
+                    <div className="px-5 py-4 flex-1">
+                        <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Total Forms</p>
+                        <p className="text-2xl font-bold text-white mt-1">{forms.length}</p>
+                    </div>
                 </div>
-                <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-5 py-4">
-                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Published</p>
-                    <p className="text-2xl font-bold text-emerald-400 mt-1">{forms.filter(f => f.isPublished).length}</p>
+                {/* Published */}
+                <div className="glass-card rounded-xl overflow-hidden flex">
+                    <div className="w-1 bg-emerald-400 flex-shrink-0" />
+                    <div className="px-5 py-4 flex-1">
+                        <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Published</p>
+                        <p className="text-2xl font-bold text-emerald-400 mt-1">{publishedCount}</p>
+                    </div>
                 </div>
-                <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-5 py-4">
-                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Drafts</p>
-                    <p className="text-2xl font-bold text-amber-400 mt-1">{forms.filter(f => !f.isPublished).length}</p>
+                {/* Drafts */}
+                <div className="glass-card rounded-xl overflow-hidden flex">
+                    <div className="w-1 bg-amber-400 flex-shrink-0" />
+                    <div className="px-5 py-4 flex-1">
+                        <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Drafts</p>
+                        <p className="text-2xl font-bold text-amber-400 mt-1">{draftCount}</p>
+                    </div>
                 </div>
-                <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-5 py-4">
-                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Total Responses</p>
-                    <p className="text-2xl font-bold text-primary-400 mt-1">{forms.reduce((sum, f) => sum + f._count.submissions, 0)}</p>
+                {/* Total Responses */}
+                <div className="glass-card rounded-xl overflow-hidden flex">
+                    <div className="w-1 bg-primary flex-shrink-0" />
+                    <div className="px-5 py-4 flex-1">
+                        <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Total Responses</p>
+                        <p className="text-2xl font-bold text-primary-400 mt-1">{totalResponses}</p>
+                    </div>
                 </div>
             </div>
 
@@ -100,9 +120,9 @@ export default async function AdminDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {/* Create New Card */}
                 <Link href="/admin/builder" className="group" id="create-new-form-card">
-                    <Card className="h-[320px] border-dashed border-2 border-white/10 bg-transparent hover:border-primary-500/50 hover:bg-primary-500/5 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-4 group-hover:scale-[1.02]">
-                        <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-primary-500 group-hover:text-white transition-all duration-300 group-hover:shadow-lg group-hover:shadow-primary-500/30">
-                            <Plus className="h-8 w-8 text-white/50 group-hover:text-white transition-colors" />
+                    <Card className="h-[320px] border-dashed border-2 border-primary/10 bg-transparent hover:border-primary/40 hover:bg-primary/5 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-4 group-hover:scale-[1.02]">
+                        <div className="w-16 h-16 rounded-2xl bg-primary/5 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-300 group-hover:shadow-lg group-hover:shadow-primary/30">
+                            <Plus className="h-8 w-8 text-primary/50 group-hover:text-white transition-colors" />
                         </div>
                         <p className="font-semibold text-muted-foreground group-hover:text-primary-300 transition-colors">Create New Form</p>
                         <p className="text-xs text-muted-foreground/50">Start from scratch</p>
@@ -118,17 +138,17 @@ export default async function AdminDashboard() {
                         <Card
                             key={form.id}
                             id={`form-card-${form.id}`}
-                            className="group relative overflow-hidden hover:border-primary-500/30 transition-all duration-300 hover:shadow-2xl hover:shadow-primary-500/10 hover:-translate-y-1 h-[320px] flex flex-col"
+                            className="group relative overflow-hidden hover:border-primary/30 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/10 hover:-translate-y-1 h-[320px] flex flex-col glass-card"
                         >
                             {/* Accent gradient strip at top */}
                             <div className={`absolute top-0 inset-x-0 h-1 bg-gradient-to-r ${accentGradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
 
                             {/* Background hover glow */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-primary-500/0 via-transparent to-primary-500/0 group-hover:from-primary-500/[0.03] group-hover:to-primary-500/[0.06] transition-all duration-500" />
+                            <div className="absolute inset-0 bg-gradient-to-br from-primary/0 via-transparent to-primary/0 group-hover:from-primary/[0.03] group-hover:to-primary/[0.06] transition-all duration-500" />
 
                             <CardHeader className="pb-3 relative z-10">
                                 <div className="flex justify-between items-start gap-3">
-                                    <CardTitle className="truncate text-lg font-bold text-white group-hover:text-primary-200 transition-colors leading-snug">
+                                    <CardTitle className="truncate text-lg font-bold text-white group-hover:text-primary-300 transition-colors leading-snug">
                                         {form.title}
                                     </CardTitle>
                                     {/* Status Badge */}
@@ -161,7 +181,7 @@ export default async function AdminDashboard() {
                             <CardContent className="flex-1 relative z-10 pb-3">
                                 {/* Stats Grid */}
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center group/stat hover:bg-white/[0.06] transition-colors">
+                                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 text-center group/stat hover:bg-primary/10 transition-colors">
                                         <div className="text-2xl font-bold text-white group-hover/stat:text-primary-300 transition-colors">
                                             {form._count.submissions}
                                         </div>
@@ -171,7 +191,7 @@ export default async function AdminDashboard() {
                                     </div>
                                     <Link
                                         href={`/admin/submissions/${form.id}`}
-                                        className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center flex flex-col items-center justify-center hover:bg-primary-500/10 hover:border-primary-500/20 transition-all group/analytics"
+                                        className="p-4 rounded-xl bg-primary/5 border border-primary/10 text-center flex flex-col items-center justify-center hover:bg-primary/15 hover:border-primary/30 transition-all group/analytics"
                                     >
                                         <BarChart2 className="w-6 h-6 text-primary-400/50 group-hover/analytics:text-primary-400 transition-colors" />
                                         <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mt-1 group-hover/analytics:text-primary-300">
@@ -188,12 +208,12 @@ export default async function AdminDashboard() {
                                 )}
                             </CardContent>
 
-                            <CardFooter className="pt-0 relative z-10 border-t border-white/[0.04] py-3 px-6 gap-1 flex justify-between items-center">
+                            <CardFooter className="pt-0 relative z-10 border-t border-primary/10 py-3 px-6 gap-1 flex justify-between items-center">
                                 {/* Primary Action */}
                                 <Link href={`/admin/builder?id=${form.id}`} className="flex-1 mr-2">
                                     <Button
                                         variant="secondary"
-                                        className="w-full bg-white/5 hover:bg-white/10 hover:text-white border-white/5 rounded-lg h-9 text-sm font-medium group/edit"
+                                        className="w-full bg-primary/10 text-primary hover:bg-primary/20 border-primary/10 rounded-lg h-9 text-sm font-medium group/edit"
                                     >
                                         Edit
                                         <ArrowUpRight className="w-3.5 h-3.5 ml-1 opacity-0 group-hover/edit:opacity-100 transition-opacity" />
@@ -204,7 +224,7 @@ export default async function AdminDashboard() {
                                 <div className="flex items-center gap-0.5">
                                     <CopyFormButton id={form.id} title={form.title} />
                                     <Link href={`/admin/submissions/${form.id}`}>
-                                        <Button size="icon" variant="ghost" className="hover:bg-primary-500/20 hover:text-primary-300 w-9 h-9">
+                                        <Button size="icon" variant="ghost" className="hover:bg-primary/20 hover:text-primary-300 w-9 h-9">
                                             <BarChart2 className="w-4 h-4" />
                                         </Button>
                                     </Link>
@@ -223,7 +243,7 @@ export default async function AdminDashboard() {
                     <h3 className="text-lg font-semibold text-white mb-2">No forms yet</h3>
                     <p className="text-sm text-muted-foreground mb-6">Create your first form to get started.</p>
                     <Link href="/admin/builder">
-                        <Button className="shadow-lg shadow-primary-500/20">
+                        <Button className="bg-primary text-white shadow-lg shadow-primary/20 hover:brightness-110">
                             <Plus className="mr-2 h-4 w-4" /> Create Your First Form
                         </Button>
                     </Link>
