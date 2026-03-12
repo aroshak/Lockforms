@@ -34,7 +34,6 @@ export function PasswordPrompt({ formSlug, onSuccess }: PasswordPromptProps) {
             const data = await response.json();
 
             if (data.success && data.token) {
-                // Password is correct — pass the verification token to parent
                 onSuccess(data.token);
             } else {
                 setError(data.error || 'Incorrect password');
@@ -48,22 +47,26 @@ export function PasswordPrompt({ formSlug, onSuccess }: PasswordPromptProps) {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-[#0B0E14] flex items-center justify-center p-4"
+            style={{
+                backgroundImage: 'radial-gradient(circle at 50% 30%, rgba(130,87,229,0.08), transparent 60%)'
+            }}
+        >
             <div className="w-full max-w-md">
-                <div className="bg-white rounded-2xl shadow-xl p-8 space-y-6">
+                <div className="glass-card rounded-2xl shadow-2xl shadow-primary/10 p-8 space-y-6">
                     {/* Icon */}
                     <div className="flex justify-center">
-                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                            <Lock className="w-8 h-8 text-blue-600" />
+                        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center border border-primary/20">
+                            <Lock className="w-8 h-8 text-primary-400" />
                         </div>
                     </div>
 
                     {/* Title */}
                     <div className="text-center">
-                        <h2 className="text-2xl font-bold text-gray-900">
+                        <h2 className="text-2xl font-bold text-white">
                             Password Required
                         </h2>
-                        <p className="mt-2 text-sm text-gray-600">
+                        <p className="mt-2 text-sm text-muted-foreground">
                             This form is password-protected. Please enter the password to continue.
                         </p>
                     </div>
@@ -83,14 +86,14 @@ export function PasswordPrompt({ formSlug, onSuccess }: PasswordPromptProps) {
                                     setError('');
                                 }}
                                 placeholder="Enter password"
-                                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                                className="w-full px-4 py-3 bg-primary/5 border border-primary/20 rounded-lg text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
                                 autoFocus
                                 disabled={isVerifying}
                             />
                         </div>
 
                         {error && (
-                            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-300">
                                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                                 <span>{error}</span>
                             </div>
@@ -99,7 +102,7 @@ export function PasswordPrompt({ formSlug, onSuccess }: PasswordPromptProps) {
                         <button
                             type="submit"
                             disabled={isVerifying || !password.trim()}
-                            className="w-full px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                            className="w-full px-4 py-3 bg-primary text-white font-medium rounded-lg hover:brightness-110 focus:outline-none focus:ring-4 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
                         >
                             {isVerifying ? (
                                 <>
@@ -113,8 +116,8 @@ export function PasswordPrompt({ formSlug, onSuccess }: PasswordPromptProps) {
                     </form>
 
                     {/* Footer */}
-                    <p className="text-xs text-center text-gray-500">
-                        Don't have the password? Contact the form owner.
+                    <p className="text-xs text-center text-muted-foreground/60">
+                        Don&apos;t have the password? Contact the form owner.
                     </p>
                 </div>
             </div>

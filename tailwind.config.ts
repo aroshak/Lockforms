@@ -17,8 +17,8 @@ const config: Config = {
         },
         extend: {
             fontFamily: {
-                sans: ["var(--font-inter)", "var(--font-system)", "sans-serif"],
-                display: ["var(--font-space)", "var(--font-inter)", "sans-serif"],
+                sans: ["var(--font-inter)", "sans-serif"],
+                display: ["var(--font-inter)", "sans-serif"],
             },
             colors: {
                 border: "hsl(var(--border))",
@@ -26,12 +26,20 @@ const config: Config = {
                 ring: "hsl(var(--ring))",
                 background: "hsl(var(--background))",
                 foreground: "hsl(var(--foreground))",
+                // Design system flat tokens
+                "primary-color": "#8257e5",
+                "background-light": "#f6f6f8",
+                "background-dark": "#0B0E14",
+                "card-dark": "#0F1219",
                 primary: {
                     DEFAULT: "hsl(var(--primary))",
                     foreground: "hsl(var(--primary-foreground))",
+                    200: '#c4b5fd', // Violet lightest
+                    300: '#b197fc', // Violet light
                     400: '#9f7aea', // Aether Violet Light
                     500: '#8257e5', // Aether Violet Main
                     600: '#6b46c1', // Aether Violet Dark
+                    900: '#2d1f5e', // Aether Violet Deepest
                 },
                 secondary: {
                     DEFAULT: "hsl(var(--secondary))",
@@ -57,15 +65,6 @@ const config: Config = {
                     DEFAULT: "hsl(var(--card))",
                     foreground: "hsl(var(--card-foreground))",
                 },
-                text: {
-                    primary: "hsl(var(--foreground))",
-                    secondary: "hsl(var(--muted-foreground))",
-                    muted: "hsl(var(--muted-foreground))",
-                },
-                surface: {
-                    light: "#f5f5f7",
-                    dark: "#1c1c1e"
-                }
             },
             borderRadius: {
                 lg: "var(--radius)",

@@ -3,12 +3,12 @@ import type { Metadata } from "next";
 // and self-hosts them — fonts are served from localhost at runtime (✅ air-gap safe).
 // However, if building in a fully air-gapped environment (no internet at build time),
 // this will fail. When preparing for air-gapped builds:
-// TODO: Download Inter & Space Grotesk to `public/fonts/` and switch to `next/font/local`
-import { Inter, Space_Grotesk } from "next/font/google";
+// TODO: Download Inter to `public/fonts/` and switch to `next/font/local`
+// TODO: Download Material Symbols to `public/fonts/` and add via @font-face in globals.css
+import { Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space" });
 
 export const metadata: Metadata = {
     title: "LockForms.io",
@@ -22,7 +22,16 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" suppressHydrationWarning>
-            <body className={`${inter.variable} ${spaceGrotesk.variable} font-sans min-h-screen bg-background text-foreground antialiased selection:bg-primary selection:text-white`}>
+            <head>
+                {/* Material Symbols Outlined icon font
+                    AIR-GAP NOTE: For fully air-gapped deployments, download the font
+                    to public/fonts/ and serve via @font-face in globals.css instead. */}
+                <link
+                    rel="stylesheet"
+                    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+                />
+            </head>
+            <body className={`${inter.variable} font-sans min-h-screen bg-background text-foreground antialiased selection:bg-primary selection:text-white`}>
                 {children}
             </body>
         </html>

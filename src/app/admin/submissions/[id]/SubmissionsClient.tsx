@@ -159,7 +159,7 @@ export function SubmissionsClient({ form, submissions }: SubmissionsClientProps)
     return (
         <div className="min-h-screen pb-20 text-foreground">
             {/* Header */}
-            <div className="bg-black/20 backdrop-blur-md border-b border-white/10 sticky top-0 z-30">
+            <div className="sidebar-glass border-b border-primary/10 sticky top-0 z-30">
                 <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <Link href="/admin">
@@ -173,17 +173,17 @@ export function SubmissionsClient({ form, submissions }: SubmissionsClientProps)
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 p-1 bg-white/5 rounded-lg border border-white/5">
+                    <div className="flex items-center gap-1 p-1 glass rounded-lg">
                         <button
                             onClick={() => setView('list')}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'list' ? 'bg-primary text-white shadow-lg' : 'text-muted-foreground hover:text-white'}`}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'list' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-muted-foreground hover:text-white hover:bg-primary/10'}`}
                         >
                             <List className="w-4 h-4" />
                             List
                         </button>
                         <button
                             onClick={() => setView('analytics')}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'analytics' ? 'bg-primary text-white shadow-lg' : 'text-muted-foreground hover:text-white'}`}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'analytics' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-muted-foreground hover:text-white hover:bg-primary/10'}`}
                         >
                             <BarChart className="w-4 h-4" />
                             Analytics
@@ -192,7 +192,7 @@ export function SubmissionsClient({ form, submissions }: SubmissionsClientProps)
 
                     <Button
                         variant="outline"
-                        className="hidden sm:flex border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary-200"
+                        className="hidden sm:flex bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20"
                         onClick={() => {
                             const exportQuestions = questions.filter((q: any) => !['statement', 'section'].includes(q.type));
                             const headers = ['Submission ID', 'Submitted At', ...exportQuestions.map((q: any) => q.title || q.id)];
@@ -225,45 +225,48 @@ export function SubmissionsClient({ form, submissions }: SubmissionsClientProps)
             <div className="max-w-7xl mx-auto px-6 py-8">
                 {view === 'analytics' ? (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-                        {/* Stats Overview */}
+                        {/* Stats Overview — glass-card with left accent border */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <Card className="glass-card">
-                                <CardContent className="p-6 flex items-center justify-between">
+                            <div className="glass-card rounded-xl overflow-hidden flex">
+                                <div className="w-1 bg-primary flex-shrink-0" />
+                                <div className="p-6 flex items-center justify-between flex-1">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">TOTAL SUBMISSIONS</p>
+                                        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total Submissions</p>
                                         <h2 className="text-4xl font-bold mt-2 text-white">{submissions.length}</h2>
                                     </div>
-                                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                                         <User className="w-6 h-6 text-primary" />
                                     </div>
-                                </CardContent>
-                            </Card>
-                            <Card className="glass-card">
-                                <CardContent className="p-6 flex items-center justify-between">
+                                </div>
+                            </div>
+                            <div className="glass-card rounded-xl overflow-hidden flex">
+                                <div className="w-1 bg-emerald-400 flex-shrink-0" />
+                                <div className="p-6 flex items-center justify-between flex-1">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">COMPLETION RATE</p>
+                                        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Completion Rate</p>
                                         <h2 className="text-4xl font-bold mt-2 text-white">100%</h2>
                                     </div>
-                                    <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                                        <Clock className="w-6 h-6 text-green-400" />
+                                    <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                                        <Clock className="w-6 h-6 text-emerald-400" />
                                     </div>
-                                </CardContent>
-                            </Card>
-                            <Card className="glass-card">
-                                <CardContent className="p-6 flex items-center justify-between">
+                                </div>
+                            </div>
+                            <div className="glass-card rounded-xl overflow-hidden flex">
+                                <div className="w-1 bg-primary-400 flex-shrink-0" />
+                                <div className="p-6 flex items-center justify-between flex-1">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">LAST ACTIVITY</p>
+                                        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Last Activity</p>
                                         <h2 className="text-xl font-bold mt-2 text-white" suppressHydrationWarning>
                                             {submissions.length > 0
                                                 ? new Date(submissions[0].submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                                                 : 'N/A'}
                                         </h2>
                                     </div>
-                                    <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
-                                        <Calendar className="w-6 h-6 text-purple-400" />
+                                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                                        <Calendar className="w-6 h-6 text-primary-400" />
                                     </div>
-                                </CardContent>
-                            </Card>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Charts Grid */}
