@@ -446,13 +446,14 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, value, onC
                 e.preventDefault();
                 const option = question.options![idx];
                 if (question.type === 'radio' || question.type === 'picture-choice' || question.type === 'choice') {
-                    onChange(option.value);
+                    onChange(option.value || option.id);
                     setTimeout(onNext, 400);
                 } else if (question.type === 'checkbox') {
+                    const key = option.value || option.id;
                     const currentValues = Array.isArray(value) ? value : [];
-                    const newValue = currentValues.includes(option.value)
-                        ? currentValues.filter((v: string) => v !== option.value)
-                        : [...currentValues, option.value];
+                    const newValue = currentValues.includes(key)
+                        ? currentValues.filter((v: string) => v !== key)
+                        : [...currentValues, key];
                     onChange(newValue);
                 }
             }
@@ -657,23 +658,24 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, value, onC
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: 0.2 + (idx * 0.1) }}
                                         onClick={() => {
+                                            const key = option.value || option.id;
                                             if (question.type === 'radio' || question.type === 'picture-choice') {
-                                                onChange(option.value);
+                                                onChange(key);
                                                 setTimeout(onNext, 400);
                                             } else {
                                                 // Checkbox logic
                                                 const currentValues = Array.isArray(value) ? value : [];
-                                                const newValue = currentValues.includes(option.value)
-                                                    ? currentValues.filter((v: string) => v !== option.value)
-                                                    : [...currentValues, option.value];
+                                                const newValue = currentValues.includes(key)
+                                                    ? currentValues.filter((v: string) => v !== key)
+                                                    : [...currentValues, key];
                                                 onChange(newValue);
                                             }
                                         }}
                                         className={cn(
                                             "cursor-pointer rounded-2xl border transition-all duration-300 relative overflow-hidden group/opt backdrop-blur-sm",
                                             question.options?.some(opt => opt.imageUrl) ? "aspect-[4/5] p-0 flex flex-col" : "p-6 flex items-center gap-6",
-                                            (Array.isArray(value) ? value.includes(option.value) : value === option.value)
-                                                ? cn(isLight ? "border-blue-500 ring-2 ring-blue-500/20 bg-blue-50" : "border-cyan-400 ring-2 ring-cyan-400/20 bg-cyan-900/40")
+                                            (Array.isArray(value) ? value.includes(option.value || option.id) : value === (option.value || option.id))
+                                                ? cn(isLight ? "border-blue-500 ring-2 ring-blue-500/20 bg-blue-50" : "border-primary ring-2 ring-primary/20 bg-primary/10")
                                                 : cn(isLight ? "border-slate-200 bg-white/50 hover:border-blue-300 hover:shadow-lg hover:-translate-y-1" : "border-white/10 bg-white/5 hover:border-white/30 hover:bg-white/10 hover:-translate-y-1")
                                         )}
                                     >
@@ -692,9 +694,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, value, onC
                                                 )} />
 
                                                 {/* Selected Check Overlay */}
-                                                {(Array.isArray(value) ? value.includes(option.value) : value === option.value) && (
-                                                    <div className={cn("absolute inset-0 flex items-center justify-center backdrop-blur-[2px]", isLight ? "bg-blue-500/20" : "bg-cyan-500/20")}>
-                                                        <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shadow-lg transform scale-100 transition-transform", isLight ? "bg-blue-500 text-white" : "bg-cyan-400 text-black")}>
+                                                {(Array.isArray(value) ? value.includes(option.value || option.id) : value === (option.value || option.id)) && (
+                                                    <div className={cn("absolute inset-0 flex items-center justify-center backdrop-blur-[2px]", isLight ? "bg-blue-500/20" : "bg-primary/20")}>
+                                                        <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shadow-lg transform scale-100 transition-transform", isLight ? "bg-blue-500 text-white" : "bg-primary text-white")}>
                                                             <Check className="w-6 h-6 stroke-[3]" />
                                                         </div>
                                                     </div>
