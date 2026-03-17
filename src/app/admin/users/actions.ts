@@ -53,7 +53,30 @@ export async function getRoles() {
 
 // ── Mutations ────────────────────────────────────────────────────────────
 
-export async function createUser(input: CreateUserInput): Promise<{ success: boolean; error?: string }> {
+// ── Return type for createUser (full user record for optimistic UI updates) ──
+export interface CreatedUserRecord {
+    id: string;
+    email: string;
+    name: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    isActive: boolean;
+    isSSOUser: boolean;
+    failedLoginAttempts: number;
+    lockedUntil: Date | null;
+    lastLoginAt: Date | null;
+    createdAt: Date;
+    organization: { name: string } | null;
+    roles: Array<{
+        id: string;
+        roleId: string;
+        role: { id: string; name: string; description: string | null };
+    }>;
+}
+
+export async function createUser(
+    input: CreateUserInput
+): Promise<{ success: boolean; error?: string; user?: CreatedUserRecord }> {
     try {
         // Check for existing user
         const existing = await prisma.user.findUnique({
@@ -66,7 +89,7 @@ export async function createUser(input: CreateUserInput): Promise<{ success: boo
         // Hash password (bcrypt cost 12)
         const passwordHash = await bcrypt.hash(input.password, 12);
 
-        const user = await prisma.user.create({
+        const created = await prisma.user.create({
             data: {
                 email: input.email.toLowerCase().trim(),
                 firstName: input.firstName.trim(),
@@ -81,15 +104,25 @@ export async function createUser(input: CreateUserInput): Promise<{ success: boo
         if (input.roleId) {
             await prisma.userRole.create({
                 data: {
-                    userId: user.id,
+                    userId: created.id,
                     roleId: input.roleId,
                     assignedBy: 'admin:ui',
                 },
             });
         }
 
+        // Fetch full user record with roles for optimistic update on client
+        const user = await prisma.user.findUnique({
+            where: { id: created.id },
+            include: {
+                roles: { include: { role: true } },
+                organization: true,
+            },
+        });
+
+        // Revalidate only the server-side cache (does not trigger RSC chunk reload)
         revalidatePath('/admin/users');
-        return { success: true };
+        return { success: true, user: user ?? undefined };
     } catch (error) {
         console.error('Error creating user:', error);
         return { success: false, error: 'Failed to create user.' };

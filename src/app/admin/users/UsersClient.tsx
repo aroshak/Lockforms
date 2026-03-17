@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
     createUser, toggleUserActive, unlockAccount,
-    resetPassword, assignRole, removeRole
+    resetPassword, assignRole, removeRole,
+    type CreatedUserRecord,
 } from './actions';
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -92,6 +93,7 @@ function getInitials(user: UserRecord): string {
 // ── Main Component ───────────────────────────────────────────────────────
 
 export function UsersClient({ users, roles }: UsersClientProps) {
+    const [userList, setUserList] = useState<UserRecord[]>(users);
     const [search, setSearch] = useState('');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [expandedUser, setExpandedUser] = useState<string | null>(null);
@@ -100,7 +102,12 @@ export function UsersClient({ users, roles }: UsersClientProps) {
     const [showRoleModal, setShowRoleModal] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-    const filteredUsers = users.filter(u => {
+    // Optimistic: add newly created user to the top of the list without RSC re-render
+    const handleUserCreated = (record: CreatedUserRecord) => {
+        setUserList(prev => [record as UserRecord, ...prev]);
+    };
+
+    const filteredUsers = userList.filter(u => {
         const q = search.toLowerCase();
         return (
             u.email.toLowerCase().includes(q) ||
@@ -119,16 +126,26 @@ export function UsersClient({ users, roles }: UsersClientProps) {
     const handleToggleActive = async (userId: string) => {
         setActionLoading(userId);
         const result = await toggleUserActive(userId);
-        if (result.success) showFeedback('success', 'User status updated.');
-        else showFeedback('error', result.error ?? 'Failed.');
+        if (result.success) {
+            // Optimistic local toggle — no RSC re-render needed
+            setUserList(prev => prev.map(u => u.id === userId ? { ...u, isActive: !u.isActive } : u));
+            showFeedback('success', 'User status updated.');
+        } else {
+            showFeedback('error', result.error ?? 'Failed.');
+        }
         setActionLoading(null);
     };
 
     const handleUnlock = async (userId: string) => {
         setActionLoading(userId);
         const result = await unlockAccount(userId);
-        if (result.success) showFeedback('success', 'Account unlocked.');
-        else showFeedback('error', result.error ?? 'Failed.');
+        if (result.success) {
+            // Clear locked state optimistically
+            setUserList(prev => prev.map(u => u.id === userId ? { ...u, lockedUntil: null, failedLoginAttempts: 0 } : u));
+            showFeedback('success', 'Account unlocked.');
+        } else {
+            showFeedback('error', result.error ?? 'Failed.');
+        }
         setActionLoading(null);
     };
 
@@ -165,24 +182,24 @@ export function UsersClient({ users, roles }: UsersClientProps) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-5 py-4">
                     <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Total Users</p>
-                    <p className="text-2xl font-bold text-white mt-1">{users.length}</p>
+                    <p className="text-2xl font-bold text-white mt-1">{userList.length}</p>
                 </div>
                 <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-5 py-4">
                     <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Active</p>
-                    <p className="text-2xl font-bold text-emerald-400 mt-1">{users.filter(u => u.isActive && !isLocked(u)).length}</p>
+                    <p className="text-2xl font-bold text-emerald-400 mt-1">{userList.filter(u => u.isActive && !isLocked(u)).length}</p>
                 </div>
                 <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-5 py-4">
                     <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Locked</p>
-                    <p className="text-2xl font-bold text-amber-400 mt-1">{users.filter(u => isLocked(u)).length}</p>
+                    <p className="text-2xl font-bold text-amber-400 mt-1">{userList.filter(u => isLocked(u)).length}</p>
                 </div>
                 <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-5 py-4">
                     <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Inactive</p>
-                    <p className="text-2xl font-bold text-slate-400 mt-1">{users.filter(u => !u.isActive).length}</p>
+                    <p className="text-2xl font-bold text-slate-400 mt-1">{userList.filter(u => !u.isActive).length}</p>
                 </div>
             </div>
 
             {/* Data Table */}
-            <div className="glass-card rounded-lg overflow-hidden">
+            <div className="glass-card rounded-lg">
                 {/* Table header with search */}
                 <div className="p-6 border-b border-white/[0.06] flex items-center justify-between">
                     <h4 className="font-bold text-white">Team Members</h4>
@@ -366,6 +383,7 @@ export function UsersClient({ users, roles }: UsersClientProps) {
                     onClose={() => setShowCreateModal(false)}
                     onSuccess={(msg) => showFeedback('success', msg)}
                     onError={(msg) => showFeedback('error', msg)}
+                    onCreated={handleUserCreated}
                 />
             )}
 
@@ -383,7 +401,7 @@ export function UsersClient({ users, roles }: UsersClientProps) {
             {showRoleModal && (
                 <ManageRolesModal
                     userId={showRoleModal}
-                    user={users.find(u => u.id === showRoleModal)!}
+                    user={userList.find(u => u.id === showRoleModal)!}
                     roles={roles}
                     onClose={() => setShowRoleModal(null)}
                     onSuccess={(msg) => showFeedback('success', msg)}
@@ -396,11 +414,12 @@ export function UsersClient({ users, roles }: UsersClientProps) {
 
 // ── Create User Modal ────────────────────────────────────────────────────
 
-function CreateUserModal({ roles, onClose, onSuccess, onError }: {
+function CreateUserModal({ roles, onClose, onSuccess, onError, onCreated }: {
     roles: RoleRecord[];
     onClose: () => void;
     onSuccess: (msg: string) => void;
     onError: (msg: string) => void;
+    onCreated: (user: CreatedUserRecord) => void;
 }) {
     const [email, setEmail] = useState('');
     const [firstName, setFirstName] = useState('');
@@ -424,6 +443,7 @@ function CreateUserModal({ roles, onClose, onSuccess, onError }: {
         const result = await createUser({ email, firstName, lastName, password, roleId: roleId || undefined });
 
         if (result.success) {
+            if (result.user) onCreated(result.user);
             onSuccess('User created successfully.');
             onClose();
         } else {
