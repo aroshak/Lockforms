@@ -424,20 +424,60 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, value, onC
 
     React.useEffect(() => {
         if (isActive && inputRef.current) {
-            // slightly delay focus for animation
-            setTimeout(() => inputRef.current?.focus(), 500);
+            // Wait for spring animation to settle (~700ms) before focusing.
+            // Calling focus() mid-animation causes the browser to silently drop it.
+            const timer = setTimeout(() => inputRef.current?.focus(), 750);
+            return () => clearTimeout(timer);
         }
     }, [isActive]);
 
-    // Gap 2.2: Keyboard A/B/C shortcuts for choice-type questions
+    // Global keyboard handler — Enter to advance + A/B/C shortcuts for choice types
     React.useEffect(() => {
         if (!isActive) return;
-        const isChoiceType = question.type === 'radio' || question.type === 'checkbox' || question.type === 'picture-choice' || question.type === 'choice';
-        if (!isChoiceType || !question.options?.length) return;
 
-        const handleKeyPress = (e: KeyboardEvent) => {
-            // Ignore if user is typing in an input/textarea
+        const handleKeyDown = (e: KeyboardEvent) => {
             const tag = (e.target as HTMLElement)?.tagName;
+
+            // --- Enter key: advance to next question ---
+            if (e.key === 'Enter') {
+                // Inside a TEXTAREA (paragraph): Ctrl+Enter or Shift+Enter advances; plain Enter = newline
+                if (tag === 'TEXTAREA') {
+                    if (e.ctrlKey || e.shiftKey) {
+                        e.preventDefault();
+                        if (question.required && !value) { setShake(prev => prev + 1); return; }
+                        onNext();
+                    }
+                    return; // Let plain Enter insert newlines normally
+                }
+
+                // Dropdown has its own internal selection — skip
+                if (question.type === 'dropdown') return;
+
+                // File & signature have no simple "done" state to check
+                if (question.type === 'file' || question.type === 'file-upload' || question.type === 'signature') return;
+
+                // Choice types (radio, checkbox, picture-choice, rating, scale):
+                // Only advance via Enter if something is already selected
+                const isChoiceType = ['radio', 'checkbox', 'picture-choice', 'choice', 'rating', 'scale'].includes(question.type);
+                if (isChoiceType) {
+                    const hasValue = Array.isArray(value) ? value.length > 0 : Boolean(value);
+                    if (!hasValue) return;
+                    e.preventDefault();
+                    onNext();
+                    return;
+                }
+
+                // All other types (text, email, number, url, date, datetime, paragraph when Ctrl/Shift held, etc.)
+                e.preventDefault();
+                if (question.required && !value) { setShake(prev => prev + 1); return; }
+                onNext();
+                return;
+            }
+
+            // --- A/B/C shortcuts for choice-type questions ---
+            const isChoiceType = question.type === 'radio' || question.type === 'checkbox' || question.type === 'picture-choice' || question.type === 'choice';
+            if (!isChoiceType || !question.options?.length) return;
+            // Don't steal letter keys while user is typing in an input
             if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
             const key = e.key.toLowerCase();
@@ -449,30 +489,19 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, value, onC
                     onChange(option.value || option.id);
                     setTimeout(onNext, 400);
                 } else if (question.type === 'checkbox') {
-                    const key = option.value || option.id;
+                    const optKey = option.value || option.id;
                     const currentValues = Array.isArray(value) ? value : [];
-                    const newValue = currentValues.includes(key)
-                        ? currentValues.filter((v: string) => v !== key)
-                        : [...currentValues, key];
+                    const newValue = currentValues.includes(optKey)
+                        ? currentValues.filter((v: string) => v !== optKey)
+                        : [...currentValues, optKey];
                     onChange(newValue);
                 }
             }
         };
 
-        window.addEventListener('keydown', handleKeyPress);
-        return () => window.removeEventListener('keydown', handleKeyPress);
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isActive, question, value, onChange, onNext]);
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            if (question.required && !value) {
-                setShake(prev => prev + 1); // Trigger shake
-                return;
-            }
-            onNext();
-        }
-    };
 
     return (
         <div className={cn("w-full max-w-3xl mx-auto px-6 py-12 relative")}>
@@ -531,7 +560,6 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, value, onC
                                     type="datetime-local"
                                     value={value || ''}
                                     onChange={(e) => onChange(e.target.value)}
-                                    onKeyDown={handleKeyDown}
                                     placeholder={question.placeholder || 'Select date and time...'}
                                     className={cn(
                                         "w-full bg-transparent text-4xl md:text-5xl font-medium focus:outline-none py-6 transition-all duration-500",
@@ -551,7 +579,6 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, value, onC
                                     type={question.type}
                                     value={value || ''}
                                     onChange={(e) => onChange(e.target.value)}
-                                    onKeyDown={handleKeyDown}
                                     placeholder={question.placeholder || 'Type your answer here...'}
                                     className={cn(
                                         "w-full bg-transparent text-4xl md:text-5xl font-medium focus:outline-none py-6 transition-all duration-500",
@@ -569,9 +596,6 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, value, onC
                                     ref={inputRef as React.RefObject<HTMLTextAreaElement>}
                                     value={value || ''}
                                     onChange={(e) => onChange(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && e.ctrlKey) onNext();
-                                    }}
                                     rows={3}
                                     placeholder={question.placeholder || 'Type your answer here...'}
                                     className={cn(
@@ -762,6 +786,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, value, onC
                                 onNext={onNext}
                                 options={question.options || []}
                                 isLight={isLight}
+                                isActive={isActive}
                                 placeholder="Select an option..."
                             />
                         ) : question.type === 'file' || question.type === 'file-upload' ? (
@@ -785,7 +810,6 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, value, onC
                                     type="url"
                                     value={value || ''}
                                     onChange={(e) => onChange(e.target.value)}
-                                    onKeyDown={handleKeyDown}
                                     placeholder={question.placeholder || 'https://example.com'}
                                     className={cn(
                                         "w-full bg-transparent text-4xl md:text-5xl font-medium focus:outline-none py-6 transition-all duration-500",

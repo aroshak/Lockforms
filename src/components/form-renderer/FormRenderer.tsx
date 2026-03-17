@@ -282,7 +282,9 @@ export function FormRenderer({ form, questions: questionsProp, title: titleProp,
                         scale: 0.8,
                         y: -100,
                         zIndex: 10 - offset,
-                        filter: 'blur(10px)'
+                        filter: 'blur(10px)',
+                        // Ensure background cards never intercept events from the first frame
+                        pointerEvents: isActive ? 'auto' : 'none' as const
                     },
                     animate: {
                         opacity: isActive ? 1 : (offset === 1 ? 0.6 : 0.3),
@@ -290,7 +292,7 @@ export function FormRenderer({ form, questions: questionsProp, title: titleProp,
                         y: isActive ? 0 : (offset === 1 ? -60 : -100),
                         zIndex: 10 - offset,
                         filter: isActive ? 'blur(0px)' : (offset === 1 ? 'blur(4px)' : 'blur(8px)'),
-                        pointerEvents: isActive ? 'auto' : 'none'
+                        pointerEvents: isActive ? 'auto' : 'none' as const
                     },
                     exit: {
                         opacity: 0,

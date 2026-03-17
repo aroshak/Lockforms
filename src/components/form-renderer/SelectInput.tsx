@@ -17,6 +17,7 @@ interface SelectInputProps {
     options: Option[];
     placeholder?: string;
     isLight?: boolean;
+    isActive?: boolean;
 }
 
 export const SelectInput: React.FC<SelectInputProps> = ({
@@ -25,7 +26,8 @@ export const SelectInput: React.FC<SelectInputProps> = ({
     onNext,
     options,
     placeholder = "Select an option...",
-    isLight = false
+    isLight = false,
+    isActive = false
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -47,8 +49,10 @@ export const SelectInput: React.FC<SelectInputProps> = ({
         };
     }, [isOpen]);
 
-    // Gap 2.2: Keyboard shortcuts for dropdown options
+    // Gap 2.2: Keyboard A-B-C shortcuts for dropdown options (only when this question is active)
     useEffect(() => {
+        if (!isActive) return;
+
         const handleKeyPress = (e: KeyboardEvent) => {
             // Ignore if user is typing in an input/textarea
             const tag = (e.target as HTMLElement)?.tagName;
@@ -67,7 +71,7 @@ export const SelectInput: React.FC<SelectInputProps> = ({
 
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [options, onChange, onNext]);
+    }, [isActive, options, onChange, onNext]);
 
     const selectedOption = options.find(opt => opt.value === value);
 
