@@ -19,395 +19,412 @@ import {
 import { Question, QuestionType } from '@/types/form';
 import { SortableQuestionItem } from './SortableQuestionItem';
 import { OptionsEditor } from './OptionsEditor';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-    Save, Eye, Type, Mail, Hash, AlignLeft, Calendar, Clock,
-    CircleDot, CheckSquare, ChevronDown, Star, Upload, PenTool, Minus, MessageSquare, BarChart2, Link as LinkIcon, Image as ImageIcon
-} from 'lucide-react';
 import Link from 'next/link';
 import { generateId, cn } from '@/lib/utils';
 import { SharePanel } from '@/components/share/SharePanel';
 import { upsertForm, getForm } from '@/app/admin/builder/actions';
 import { FormSettingsPanel } from './FormSettingsPanel';
+import { useSession } from 'next-auth/react';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type RightPanel = 'properties' | 'settings' | 'share';
+
+interface Flow {
+    id: string;
+    name: string;
+}
+
+// ─── Left Sidebar Element Definitions ────────────────────────────────────────
+
+const FORM_ELEMENTS: { type: QuestionType; icon: string; label: string }[] = [
+    { type: 'text',           icon: 'text_fields',         label: 'Text Input'      },
+    { type: 'email',          icon: 'email',               label: 'Email'           },
+    { type: 'number',         icon: 'tag',                 label: 'Number'          },
+    { type: 'paragraph',      icon: 'notes',               label: 'Paragraph'       },
+    { type: 'dropdown',       icon: 'list',                label: 'Dropdown'        },
+    { type: 'checkbox',       icon: 'check_box',           label: 'Checkbox'        },
+    { type: 'radio',          icon: 'radio_button_checked',label: 'Radio'           },
+    { type: 'picture-choice', icon: 'image',               label: 'Picture Choice'  },
+    { type: 'rating',         icon: 'star',                label: 'Rating'          },
+    { type: 'scale',          icon: 'linear_scale',        label: 'Scale 1–10'      },
+    { type: 'date',           icon: 'calendar_today',      label: 'Date Picker'     },
+    { type: 'file',           icon: 'cloud_upload',        label: 'File Upload'     },
+    { type: 'signature',      icon: 'draw',                label: 'Signature'       },
+    { type: 'statement',      icon: 'info',                label: 'Statement'       },
+];
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
 
 const createQuestion = (type: QuestionType): Question => {
     if (type === 'statement') {
-        return {
-            id: generateId(),
-            type,
-            title: "Statement Title",
-            description: "Enter your message here...",
-            required: false
-        };
+        return { id: generateId(), type, title: 'Statement Title', description: 'Enter your message here...', required: false };
     }
-
     return {
-        id: generateId(),
-        type,
-        title: "",
-        placeholder: "",
-        description: "",
-        required: false,
+        id: generateId(), type, title: '', placeholder: '', description: '', required: false,
         options: ['choice', 'radio', 'checkbox', 'dropdown', 'picture-choice'].includes(type)
             ? [{ id: generateId(), label: 'Option 1', value: '1' }, { id: generateId(), label: 'Option 2', value: '2' }]
-            : undefined
+            : undefined,
     };
 };
 
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export function FormBuilder({ formId }: { formId?: string }) {
-    const [isLoading, setIsLoading] = React.useState(!(!formId));
-    const [questions, setQuestions] = React.useState<Question[]>([]);
-    const [formTitle, setFormTitle] = React.useState("Untitled Form");
-    const [selectedQuestion, setSelectedQuestion] = React.useState<Question | null>(null);
-    const [selectedScreen, setSelectedScreen] = React.useState<'welcome' | 'end' | null>(null);
-    const [saving, setSaving] = React.useState(false);
-    const [activeView, setActiveView] = React.useState<'build' | 'settings' | 'share'>('build');
-    const [formSlug, setFormSlug] = React.useState<string | null>(null);
-    const [formSettings, setFormSettings] = React.useState<any>(null);
+    const { data: session } = useSession();
+    const [isLoading,       setIsLoading]       = React.useState(!!formId);
+    const [questions,       setQuestions]       = React.useState<Question[]>([]);
+    const [flows,           setFlows]           = React.useState<Flow[]>([]);
+    const [formTitle,       setFormTitle]       = React.useState('Untitled Form');
+    const [selectedQuestion,setSelectedQuestion]= React.useState<Question | null>(null);
+    const [selectedScreen,  setSelectedScreen]  = React.useState<'welcome' | 'end' | null>(null);
+    const [saving,          setSaving]          = React.useState(false);
+    const [lastSaved,       setLastSaved]       = React.useState<Date | null>(null);
+    const [rightPanel,      setRightPanel]      = React.useState<RightPanel>('properties');
+    const [formSlug,        setFormSlug]        = React.useState<string | null>(null);
+    const [formSettings,    setFormSettings]    = React.useState<Record<string, unknown> | null>(null);
 
-    const handleScreenSelect = (screen: 'welcome' | 'end') => {
-        setSelectedScreen(screen);
-        setSelectedQuestion(null);
-    };
+    const autoSaveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isMounted     = React.useRef(false);
 
-    const handleQuestionSelect = (question: Question) => {
-        setSelectedQuestion(question);
-        setSelectedScreen(null);
-    };
-
-    const updateFormSettings = (updates: any) => {
-        setFormSettings((prev: any) => ({ ...prev, ...updates }));
-    };
-
-    const updateWelcomeScreen = (updates: any) => {
-        const current = formSettings?.welcomeScreen || { enabled: true, title: '', description: '', buttonText: "Start" };
-        updateFormSettings({
-            welcomeScreen: { ...current, ...updates }
-        });
-    };
-
-    const updateEndScreen = (updates: any) => {
-        const current = formSettings?.endScreen || { enabled: true, title: 'Thank you!', description: 'Submission received.', buttonText: 'Submit another', redirectUrl: '' };
-        updateFormSettings({
-            endScreen: { ...current, ...updates }
-        });
-    };
-
-    // FIXED: Added activationConstraint so clicks are not swallowed by drag events (distance: 8px)
+    // ── DnD sensors ──────────────────────────────────────────────────────────
     const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8,
-            },
-        }),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
     );
 
+    // ── Load form ─────────────────────────────────────────────────────────────
     React.useEffect(() => {
-        if (formId) {
-            getForm(formId).then(result => {
-                if (result.success && result.data) {
-                    const form = result.data;
-                    setFormTitle(form.title || "Untitled Form");
-
-                    // Extract questions from schema
-                    const schema = form.schema as any;
-                    let loadedQuestions: Question[] = [];
-
-                    if (Array.isArray(schema)) {
-                        loadedQuestions = schema;
-                    } else if (schema && typeof schema === 'object' && Array.isArray(schema.questions)) {
-                        loadedQuestions = schema.questions;
-                    }
-
-                    setQuestions(loadedQuestions);
-                    setFormSlug(form.slug);
-                    setFormSettings(form.settings || null);
-                }
-            }).finally(() => setIsLoading(false));
-        }
+        if (!formId) return;
+        getForm(formId).then(result => {
+            if (result.success && result.data) {
+                const form = result.data;
+                setFormTitle(form.title || 'Untitled Form');
+                const schema = form.schema as Record<string, unknown>;
+                let loaded: Question[] = [];
+                if (Array.isArray(schema)) loaded = schema as Question[];
+                else if (schema?.questions && Array.isArray(schema.questions)) loaded = schema.questions as Question[];
+                setQuestions(loaded);
+                setFormSlug(form.slug);
+                setFormSettings((form.settings as Record<string, unknown>) || null);
+            }
+        }).finally(() => setIsLoading(false));
     }, [formId]);
+
+    // ── Auto-save (debounced, existing forms only) ────────────────────────────
+    React.useEffect(() => {
+        if (!isMounted.current) { isMounted.current = true; return; }
+        if (!formId) return;
+        if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+        autoSaveTimer.current = setTimeout(() => doSave(true), 2500);
+        return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [questions, formTitle, formSettings]);
+
+    // ── Last-saved display ────────────────────────────────────────────────────
+    const lastSavedText = React.useMemo(() => {
+        if (saving) return 'Saving…';
+        if (!lastSaved) return 'Unsaved';
+        const s = Math.floor((Date.now() - lastSaved.getTime()) / 1000);
+        if (s < 10)   return 'Just now';
+        if (s < 60)   return `${s}s ago`;
+        if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+        return `${Math.floor(s / 3600)}h ago`;
+    }, [saving, lastSaved]);
+
+    // ── Save ──────────────────────────────────────────────────────────────────
+    const doSave = async (silent = false) => {
+        if (!silent) setSaving(true);
+        try {
+            const result = await upsertForm(formId || null, formTitle, questions, formSettings || {});
+            if (result.success && result.data) {
+                setLastSaved(new Date());
+                if (!formId && result.data.id) {
+                    window.history.pushState({}, '', `/admin/builder?id=${result.data.id}`);
+                }
+            }
+        } catch (e) { console.error('Save error:', e); }
+        finally { if (!silent) setSaving(false); }
+    };
+
+    // ── Question CRUD ─────────────────────────────────────────────────────────
+    const addQuestion = (type: QuestionType) => {
+        const q = createQuestion(type);
+        setQuestions(prev => [...prev, q]);
+        setSelectedQuestion(q);
+        setSelectedScreen(null);
+        setRightPanel('properties');
+    };
+
+    const updateQuestion = (id: string, updates: Partial<Question>) => {
+        setQuestions(prev => prev.map(q => q.id === id ? { ...q, ...updates } : q));
+        if (selectedQuestion?.id === id) setSelectedQuestion(prev => prev ? { ...prev, ...updates } : null);
+    };
+
+    const deleteQuestion = (id: string) => {
+        setQuestions(prev => prev.filter(q => q.id !== id));
+        if (selectedQuestion?.id === id) setSelectedQuestion(null);
+    };
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-
         if (over && active.id !== over.id) {
-            setQuestions((items) => {
-                const oldIndex = items.findIndex((q) => q.id === active.id);
-                const newIndex = items.findIndex((q) => q.id === over.id);
-                return arrayMove(items, oldIndex, newIndex);
+            setQuestions(items => {
+                const oi = items.findIndex(q => q.id === active.id);
+                const ni = items.findIndex(q => q.id === over.id);
+                return arrayMove(items, oi, ni);
             });
         }
     };
 
-    const addQuestion = (type: QuestionType) => {
-        const newQuestion = createQuestion(type);
-        setQuestions((prev) => [...prev, newQuestion]);
-        handleQuestionSelect(newQuestion);
+    // ── Flow CRUD ─────────────────────────────────────────────────────────────
+    const addFlow = () => {
+        setFlows(prev => [...prev, { id: generateId(), name: `Flow ${prev.length + 1}` }]);
     };
 
-    const updateQuestion = (id: string, updates: Partial<Question>) => {
-        setQuestions((prev) =>
-            prev.map((q) => (q.id === id ? { ...q, ...updates } : q))
-        );
-        if (selectedQuestion?.id === id) {
-            setSelectedQuestion((prev) => prev ? { ...prev, ...updates } : null);
-        }
-    };
+    // ── Settings helpers ──────────────────────────────────────────────────────
+    const updateFormSettings = (updates: Record<string, unknown>) =>
+        setFormSettings(prev => ({ ...(prev || {}), ...updates }));
 
-    const deleteQuestion = (id: string) => {
-        setQuestions((prev) => prev.filter((q) => q.id !== id));
-        if (selectedQuestion?.id === id) {
-            setSelectedQuestion(null);
-        }
-    };
+    const updateWelcomeScreen = (updates: Record<string, unknown>) => updateFormSettings({
+        welcomeScreen: { enabled: true, title: '', description: '', buttonText: 'Start', ...(formSettings?.welcomeScreen as Record<string, unknown> || {}), ...updates }
+    });
 
-    const handleSave = async () => {
-        setSaving(true);
-        try {
-            const result = await upsertForm(
-                formId || null,
-                formTitle,
-                questions,
-                formSettings || {}
-            );
+    const updateEndScreen = (updates: Record<string, unknown>) => updateFormSettings({
+        endScreen: { enabled: true, title: 'Thank you!', description: 'Submission received.', buttonText: 'Submit another', redirectUrl: '', ...(formSettings?.endScreen as Record<string, unknown> || {}), ...updates }
+    });
 
-            if (result.success && result.data) {
-                if (!formId && result.data.id) {
-                    window.history.pushState({}, '', `/admin/builder?id=${result.data.id}`);
-                }
-            } else {
-                console.error('Failed to save form:', result.message);
-            }
-        } catch (error) {
-            console.error('Error saving form:', error);
-        } finally {
-            setSaving(false);
-        }
-    };
+    // ── Derived ───────────────────────────────────────────────────────────────
+    const welcomeScreen = formSettings?.welcomeScreen as Record<string, unknown> | undefined;
+    const endScreen     = formSettings?.endScreen     as Record<string, unknown> | undefined;
+    const userInitial   = (session?.user?.name?.[0] || session?.user?.email?.[0] || 'A').toUpperCase();
 
     if (isLoading) {
-        return <div className="flex items-center justify-center min-h-screen bg-[#0B0E14] text-primary-400 font-medium animate-pulse">Loading editor...</div>;
+        return (
+            <div className="flex h-screen items-center justify-center bg-[#0B0E14] text-sm font-medium text-primary animate-pulse">
+                Loading editor…
+            </div>
+        );
     }
 
     return (
-        <div className="flex h-screen bg-[#0B0E14] text-foreground overflow-hidden">
-            {/* Left Sidebar - Toolbox */}
-            <div className="hidden lg:flex w-72 border-r border-white/10 flex-col bg-black/20 backdrop-blur-xl z-20">
-                <div className="p-5 border-b border-white/10">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center shadow-lg shadow-primary/20">
-                            <span className="font-bold text-white text-lg font-display">L</span>
-                        </div>
-                        <span className="font-bold text-white text-lg tracking-tight">LockForms</span>
+        <div className="flex h-screen w-full flex-col overflow-hidden bg-[#0B0E14] text-slate-100">
+
+            {/* ═══════════════════════════════════════════════════════════════
+                TOP HEADER
+            ═══════════════════════════════════════════════════════════════ */}
+            <header className="flex h-16 flex-shrink-0 items-center justify-between border-b border-primary/10 bg-[#0B0E14]/80 px-6 backdrop-blur-md z-50">
+
+                {/* Left: logo + title */}
+                <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                        <span className="material-symbols-outlined text-2xl">grid_view</span>
                     </div>
-                    <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/5">
-                        {['build', 'settings', 'share'].map((view) => (
-                            <Button
-                                key={view}
-                                variant="ghost"
-                                size="sm"
-                                className={cn(
-                                    "flex-1 h-8 text-xs font-medium capitalize transition-all duration-300",
-                                    activeView === view ? "bg-primary text-white shadow-md rounded-lg" : "text-muted-foreground hover:text-white hover:bg-white/5"
-                                )}
-                                onClick={() => setActiveView(view as any)}
-                            >
-                                {view}
-                            </Button>
-                        ))}
-                    </div>
-                </div>
-
-                {activeView === 'build' && (
-                    <div className="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-8">
-                        <div>
-                            <h3 className="text-xs font-bold text-white/40 mb-3 px-1 uppercase tracking-widest">Core Fields</h3>
-                            <div className="grid grid-cols-2 gap-3">
-                                <ToolButton icon={Type} label="Text" onClick={() => addQuestion('text')} />
-                                <ToolButton icon={Mail} label="Email" onClick={() => addQuestion('email')} />
-                                <ToolButton icon={Hash} label="Number" onClick={() => addQuestion('number')} />
-                                <ToolButton icon={AlignLeft} label="Paragraph" onClick={() => addQuestion('paragraph')} />
-                            </div>
-                        </div>
-
-                        <div>
-                            <h3 className="text-xs font-bold text-white/40 mb-3 px-1 uppercase tracking-widest">Layout & Content</h3>
-                            <div className="grid grid-cols-2 gap-3">
-                                <ToolButton icon={MessageSquare} label="Statement" onClick={() => addQuestion('statement')} />
-                                <ToolButton icon={LinkIcon} label="Website" onClick={() => addQuestion('website')} />
-                            </div>
-                        </div>
-
-                        <div>
-                            <h3 className="text-xs font-bold text-white/40 mb-3 px-1 uppercase tracking-widest">Selection</h3>
-                            <div className="grid grid-cols-2 gap-3">
-                                <ToolButton icon={CircleDot} label="Radio" onClick={() => addQuestion('radio')} />
-                                <ToolButton icon={CheckSquare} label="Checkbox" onClick={() => addQuestion('checkbox')} />
-                                <ToolButton icon={ChevronDown} label="Dropdown" onClick={() => addQuestion('dropdown')} />
-                                <ToolButton icon={ImageIcon} label="Picture Choice" onClick={() => addQuestion('picture-choice')} />
-                                <ToolButton icon={Star} label="Rating" onClick={() => addQuestion('rating')} />
-                                <ToolButton icon={BarChart2} label="Scale 1-10" onClick={() => addQuestion('scale')} />
-                            </div>
-                        </div>
-
-                        <div>
-                            <h3 className="text-xs font-bold text-white/40 mb-3 px-1 uppercase tracking-widest">Advanced</h3>
-                            <div className="grid grid-cols-2 gap-3">
-                                <ToolButton icon={Upload} label="File Upload" onClick={() => addQuestion('file')} />
-                                <ToolButton icon={PenTool} label="Signature" onClick={() => addQuestion('signature')} />
-                                <ToolButton icon={Calendar} label="Date" onClick={() => addQuestion('date')} />
-                                <ToolButton icon={Clock} label="Time" onClick={() => addQuestion('datetime')} />
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeView === 'settings' && (
-                    <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        <FormSettingsPanel
-                            settings={formSettings || {}}
-                            onChange={setFormSettings}
+                    <div>
+                        <input
+                            type="text"
+                            value={formTitle}
+                            onChange={e => setFormTitle(e.target.value)}
+                            className="bg-transparent text-sm font-semibold text-slate-100 focus:outline-none focus:border-b focus:border-primary/50 transition-all min-w-[140px] max-w-[300px]"
                         />
+                        <p className="text-[10px] uppercase tracking-wider text-slate-500">
+                            Draft · Last saved {lastSavedText}
+                        </p>
                     </div>
-                )}
-
-                {activeView === 'share' && (
-                    <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        {formSlug ? (
-                            <SharePanel formId={formId!} formSlug={formSlug} />
-                        ) : (
-                            <div className="p-8 text-center">
-                                <p className="text-muted-foreground text-sm mb-4">Save your form to generate a share link.</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                <div className="p-4 border-t border-white/10 bg-black/40">
-                    <Button
-                        onClick={handleSave}
-                        className="w-full bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(130,87,229,0.3)] hover:shadow-[0_0_25px_rgba(130,87,229,0.5)] transition-all h-10 font-medium"
-                        disabled={saving}
-                    >
-                        {saving ? (
-                            <>Saving...</>
-                        ) : (
-                            <>
-                                <Save className="mr-2 h-4 w-4" /> Save Changes
-                            </>
-                        )}
-                    </Button>
                 </div>
-            </div>
 
-            {/* Main Canvas */}
-            <div className="flex-1 flex flex-col h-full bg-[#0B0E14] relative overflow-hidden transition-all duration-300">
-                {/* Background Grid */}
-                <div className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
-                    style={{ backgroundImage: 'radial-gradient(#8257e5 1px, transparent 1px)', backgroundSize: '32px 32px' }}
-                />
-
-                <header className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-black/20 backdrop-blur-md z-10">
-                    <div className="flex items-center gap-3 lg:hidden">
-                        {/* Mobile Menu Toggle would go here */}
-                        <span className="font-bold text-white">LockForms</span>
+                {/* Right: actions */}
+                <div className="flex items-center gap-3">
+                    {/* Undo / Redo */}
+                    <div className="flex items-center gap-1 border-r border-primary/10 pr-4 mr-1">
+                        <button className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors" title="Undo">
+                            <span className="material-symbols-outlined text-xl">undo</span>
+                        </button>
+                        <button className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors" title="Redo">
+                            <span className="material-symbols-outlined text-xl">redo</span>
+                        </button>
                     </div>
 
-                    <div className="hidden lg:flex items-center gap-2">
-                        <div className="flex items-center px-3 py-1 bg-white/5 rounded-full border border-white/5">
-                            <span className="w-2 h-2 rounded-full bg-green-500 mr-2 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></span>
-                            <span className="text-xs font-medium text-white/70">Canvas Active</span>
+                    {/* Settings icon */}
+                    <button
+                        onClick={() => setRightPanel(p => p === 'settings' ? 'properties' : 'settings')}
+                        className={cn(
+                            'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
+                            rightPanel === 'settings' ? 'bg-primary/20 text-primary' : 'text-slate-400 hover:bg-primary/10 hover:text-primary'
+                        )}
+                        title="Form Settings"
+                    >
+                        <span className="material-symbols-outlined text-xl">settings</span>
+                    </button>
+
+                    {/* Share icon */}
+                    <button
+                        onClick={() => setRightPanel(p => p === 'share' ? 'properties' : 'share')}
+                        className={cn(
+                            'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
+                            rightPanel === 'share' ? 'bg-primary/20 text-primary' : 'text-slate-400 hover:bg-primary/10 hover:text-primary'
+                        )}
+                        title="Share"
+                    >
+                        <span className="material-symbols-outlined text-xl">share</span>
+                    </button>
+
+                    {/* Preview */}
+                    {formSlug ? (
+                        <Link href={`/f/${formSlug}`} target="_blank">
+                            <button className="flex items-center gap-2 rounded-lg bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-all">
+                                <span className="material-symbols-outlined text-lg">visibility</span>
+                                Preview
+                            </button>
+                        </Link>
+                    ) : (
+                        <button
+                            onClick={() => doSave()}
+                            className="flex items-center gap-2 rounded-lg bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-all"
+                        >
+                            <span className="material-symbols-outlined text-lg">visibility</span>
+                            Preview
+                        </button>
+                    )}
+
+                    {/* Publish */}
+                    <button
+                        onClick={() => doSave()}
+                        disabled={saving}
+                        className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary/20 hover:brightness-110 transition-all disabled:opacity-70"
+                    >
+                        <span className="material-symbols-outlined text-lg">rocket_launch</span>
+                        {saving ? 'Saving…' : 'Publish'}
+                    </button>
+
+                    {/* Avatar */}
+                    <div className="ml-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/20 text-sm font-bold text-primary">
+                        {userInitial}
+                    </div>
+                </div>
+            </header>
+
+            {/* ═══════════════════════════════════════════════════════════════
+                BODY  (left sidebar | canvas | right panel)
+            ═══════════════════════════════════════════════════════════════ */}
+            <div className="flex flex-1 overflow-hidden">
+
+                {/* ── LEFT SIDEBAR ── */}
+                <aside className="sidebar-glass w-72 flex-shrink-0 border-r border-primary/10 flex flex-col gap-6 overflow-y-auto p-6">
+
+                    {/* Form Elements */}
+                    <div>
+                        <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">Form Elements</h2>
+                        <div className="grid grid-cols-1 gap-2">
+                            {FORM_ELEMENTS.map(el => (
+                                <button
+                                    key={el.type}
+                                    onClick={() => addQuestion(el.type)}
+                                    className="glass flex cursor-pointer items-center gap-3 rounded-lg p-3 hover:glass-active transition-all group text-left"
+                                >
+                                    <span className="material-symbols-outlined text-xl text-primary">{el.icon}</span>
+                                    <span className="text-sm font-medium text-slate-300 group-hover:text-white">{el.label}</span>
+                                </button>
+                            ))}
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        {formSlug && (
-                            <Link href={`/f/${formSlug}`} target="_blank">
-                                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-white hover:bg-white/5">
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    Preview
-                                </Button>
-                            </Link>
+                    {/* Flow Control */}
+                    <div>
+                        <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">Flow Control</h2>
+                        <div className="grid grid-cols-1 gap-2">
+                            <button
+                                onClick={addFlow}
+                                className="glass flex cursor-pointer items-center gap-3 rounded-lg p-3 hover:glass-active transition-all group text-left"
+                            >
+                                <span className="material-symbols-outlined text-xl text-primary">alt_route</span>
+                                <span className="text-sm font-medium text-slate-300 group-hover:text-white">Conditional Logic</span>
+                            </button>
+                        </div>
+
+                        {/* Active flows list */}
+                        {flows.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                                {flows.map(flow => (
+                                    <div key={flow.id} className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/10 px-3 py-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-primary" style={{ fontSize: '16px' }}>alt_route</span>
+                                            <span className="text-xs font-medium text-primary">{flow.name}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setFlows(prev => prev.filter(f => f.id !== flow.id))}
+                                            className="text-slate-500 hover:text-red-400 transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
-                </header>
+                </aside>
 
-                <div className="flex-1 overflow-y-auto p-4 lg:p-10 relative z-10 custom-scrollbar scroll-smooth">
-                    <div className="max-w-3xl mx-auto space-y-6 pb-24">
-                        {/* Title Editor */}
-                        <div className="glass p-8 rounded-2xl border-l-4 border-l-primary group transition-all hover:bg-white/[0.07] mb-6">
-                            <label className="block text-xs uppercase tracking-widest text-primary-400 font-bold mb-3">Form Header</label>
+                {/* ── CANVAS ── */}
+                <section className="relative flex-1 overflow-y-auto p-12 bg-[radial-gradient(circle_at_center,_rgba(130,87,229,0.05)_0%,_#0B0E14_60%)]">
+                    <div className="mx-auto max-w-2xl space-y-6">
+
+                        {/* Canvas title */}
+                        <div className="mb-10 text-center">
                             <input
                                 type="text"
                                 value={formTitle}
-                                onChange={(e) => setFormTitle(e.target.value)}
-                                className="w-full bg-transparent text-4xl lg:text-5xl font-bold text-white placeholder:text-muted-foreground/30 focus:outline-none font-display leading-tight"
+                                onChange={e => setFormTitle(e.target.value)}
                                 placeholder="Untitled Form"
+                                className="w-full bg-transparent text-2xl font-bold text-white text-center focus:outline-none placeholder:text-white/20"
                             />
+                            <p className="mt-1 text-sm text-slate-500">
+                                {questions.length === 0 ? 'Click a field in the sidebar to add it here' : 'Identity and access level verification'}
+                            </p>
                         </div>
 
-                        {/* Welcome Screen Block */}
+                        {/* Welcome Screen block */}
                         <div
-                            onClick={() => handleScreenSelect('welcome')}
+                            onClick={() => { setSelectedScreen('welcome'); setSelectedQuestion(null); setRightPanel('properties'); }}
                             className={cn(
-                                "p-6 rounded-xl border-2 transition-all cursor-pointer relative group",
+                                'relative group rounded-xl p-6 transition-all cursor-pointer border',
                                 selectedScreen === 'welcome'
-                                    ? "border-primary bg-primary/5 shadow-[0_0_30px_rgba(130,87,229,0.15)]"
-                                    : "border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/5"
+                                    ? 'glass-active border-primary/50 ring-4 ring-primary/10'
+                                    : 'glass border-primary/10 hover:border-primary/30'
                             )}
                         >
-                            <div className="absolute top-4 left-4 px-2 py-1 rounded-md bg-white/10 text-[10px] font-bold uppercase tracking-widest text-white/50">
+                            <div className="absolute top-3 left-3 rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white/40">
                                 Welcome Screen
                             </div>
-                            <div className="mt-8 text-center space-y-2">
-                                <h3 className={cn("text-2xl font-bold", formSettings?.welcomeScreen?.title ? "text-white" : "text-white/30 italic")}>
-                                    {formSettings?.welcomeScreen?.title || "Welcome to our form"}
+                            <div className="mt-6 space-y-2 text-center">
+                                <h3 className={cn('text-xl font-bold', welcomeScreen?.title ? 'text-white' : 'italic text-white/20')}>
+                                    {(welcomeScreen?.title as string) || 'Welcome to our form'}
                                 </h3>
-                                <p className={cn("text-sm", formSettings?.welcomeScreen?.description ? "text-muted-foreground" : "text-white/20 italic")}>
-                                    {formSettings?.welcomeScreen?.description || "Description goes here..."}
-                                </p>
-                                <div className="pt-4">
-                                    <span className="px-6 py-2 rounded-full bg-white/10 text-white/40 text-sm font-medium border border-white/5">
-                                        {formSettings?.welcomeScreen?.buttonText || "Start"}
-                                    </span>
-                                </div>
+                                <p className="text-sm text-slate-500">{(welcomeScreen?.description as string) || 'Description goes here…'}</p>
+                                <span className="inline-block rounded-full border border-white/5 bg-white/5 px-6 py-1.5 text-sm text-white/30">
+                                    {(welcomeScreen?.buttonText as string) || 'Start'}
+                                </span>
                             </div>
-                            {!formSettings?.welcomeScreen?.enabled && (
-                                <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center rounded-xl border border-white/5">
-                                    <div className="px-4 py-2 rounded-lg bg-black/80 border border-white/10 text-white/50 text-xs font-mono uppercase tracking-widest">
-                                        Hidden
-                                    </div>
+                            {welcomeScreen?.enabled === false && (
+                                <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60">
+                                    <span className="text-xs font-bold uppercase tracking-widest text-white/30">Hidden</span>
                                 </div>
                             )}
                         </div>
 
-                        {/* Drop / Sort Area */}
-                        <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={handleDragEnd}
-                        >
-                            <SortableContext
-                                items={questions.map(q => q.id)}
-                                strategy={verticalListSortingStrategy}
-                            >
-                                <div className="space-y-4 min-h-[200px]">
-                                    {questions.map((question) => (
+                        {/* Questions via DnD */}
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                            <SortableContext items={questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                                <div className="space-y-4 min-h-[60px]">
+                                    {questions.map(question => (
                                         <div
                                             key={question.id}
-                                            onClick={() => handleQuestionSelect(question)}
-                                            className="transform transition-all duration-200"
+                                            onClick={() => { setSelectedQuestion(question); setSelectedScreen(null); setRightPanel('properties'); }}
                                         >
                                             <SortableQuestionItem
                                                 question={question}
                                                 isSelected={selectedQuestion?.id === question.id}
                                                 onDelete={() => deleteQuestion(question.id)}
-                                                onUpdate={(updates) => updateQuestion(question.id, updates)}
+                                                onUpdate={updates => updateQuestion(question.id, updates)}
                                             />
                                         </div>
                                     ))}
@@ -415,232 +432,294 @@ export function FormBuilder({ formId }: { formId?: string }) {
                             </SortableContext>
                         </DndContext>
 
-                        {/* End Screen Block */}
+                        {/* Flow cards on canvas */}
+                        {flows.map(flow => (
+                            <div key={flow.id} className="glass rounded-xl border border-primary/20 p-5">
+                                <div className="mb-2 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-primary text-lg">alt_route</span>
+                                    <span className="text-sm font-semibold text-primary">{flow.name}</span>
+                                    <span className="ml-auto rounded bg-primary/20 px-2 py-0.5 text-[10px] font-bold uppercase text-primary">Flow</span>
+                                </div>
+                                <p className="text-xs text-slate-500">Configure conditions and actions in the properties panel.</p>
+                            </div>
+                        ))}
+
+                        {/* Drop zone */}
+                        <div className="flex cursor-pointer justify-center rounded-xl border-2 border-dashed border-primary/20 p-8 transition-all group hover:border-primary/40 hover:bg-primary/5">
+                            <div className="flex flex-col items-center gap-2">
+                                <span className="material-symbols-outlined text-3xl text-primary/40 transition-colors group-hover:text-primary">add_circle</span>
+                                <span className="text-sm font-medium text-slate-500 group-hover:text-slate-300">Drop a component here</span>
+                            </div>
+                        </div>
+
+                        {/* End Screen block */}
                         <div
-                            onClick={() => handleScreenSelect('end')}
+                            onClick={() => { setSelectedScreen('end'); setSelectedQuestion(null); setRightPanel('properties'); }}
                             className={cn(
-                                "p-6 rounded-xl border-2 transition-all cursor-pointer relative group",
+                                'relative group rounded-xl p-6 transition-all cursor-pointer border',
                                 selectedScreen === 'end'
-                                    ? "border-primary bg-primary/5 shadow-[0_0_30px_rgba(130,87,229,0.15)]"
-                                    : "border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/5"
+                                    ? 'glass-active border-primary/50 ring-4 ring-primary/10'
+                                    : 'glass border-primary/10 hover:border-primary/30'
                             )}
                         >
-                            <div className="absolute top-4 left-4 px-2 py-1 rounded-md bg-white/10 text-[10px] font-bold uppercase tracking-widest text-white/50">
+                            <div className="absolute top-3 left-3 rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white/40">
                                 End Screen
                             </div>
-                            <div className="mt-8 text-center space-y-2">
-                                <h3 className={cn("text-2xl font-bold", formSettings?.endScreen?.title ? "text-white" : "text-white/30 italic")}>
-                                    {formSettings?.endScreen?.title || "Thank you!"}
+                            <div className="mt-6 space-y-2 text-center">
+                                <h3 className={cn('text-xl font-bold', endScreen?.title ? 'text-white' : 'italic text-white/20')}>
+                                    {(endScreen?.title as string) || 'Thank you!'}
                                 </h3>
-                                <p className={cn("text-sm", formSettings?.endScreen?.description ? "text-muted-foreground" : "text-white/20 italic")}>
-                                    {formSettings?.endScreen?.description || "Your submission has been received."}
-                                </p>
+                                <p className="text-sm text-slate-500">{(endScreen?.description as string) || 'Your submission has been received.'}</p>
                             </div>
-                            {!formSettings?.endScreen?.enabled && (
-                                <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center rounded-xl border border-white/5">
-                                    <div className="px-4 py-2 rounded-lg bg-black/80 border border-white/10 text-white/50 text-xs font-mono uppercase tracking-widest">
-                                        Hidden
-                                    </div>
+                            {endScreen?.enabled === false && (
+                                <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60">
+                                    <span className="text-xs font-bold uppercase tracking-widest text-white/30">Hidden</span>
                                 </div>
                             )}
                         </div>
 
-                        {(!questions || questions.length === 0) && (
-                            <div className="border border-dashed border-white/10 rounded-2xl p-16 text-center bg-white/[0.02] hover:bg-white/[0.04] transition-colors cursor-pointer group" onClick={() => setActiveView('build')}>
-                                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 group-hover:scale-110 transition-all duration-300">
-                                    <PenTool className="h-8 w-8 text-white/40 group-hover:text-primary" />
-                                </div>
-                                <h3 className="text-xl font-bold text-white mb-2">Start Building</h3>
-                                <p className="text-muted-foreground max-w-sm mx-auto">Select a field type from the sidebar to begin crafting your form.</p>
-                            </div>
-                        )}
                     </div>
-                </div>
-            </div>
+                </section>
 
-            {/* Right Sidebar - Properties */}
-            {
-                (selectedQuestion || selectedScreen) && activeView === 'build' && (
-                    <div className="hidden xl:flex w-80 border-l border-white/10 bg-black/20 backdrop-blur-xl flex-col h-full z-20 animate-in slide-in-from-right-4 duration-300">
-                        <div className="p-5 border-b border-white/10 bg-white/5">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-bold text-white tracking-wide">
-                                    {selectedScreen === 'welcome' && "Welcome Screen"}
-                                    {selectedScreen === 'end' && "End Screen"}
-                                    {selectedQuestion && "Properties"}
-                                </h3>
-                                <button onClick={() => { setSelectedQuestion(null); setSelectedScreen(null); }} className="text-muted-foreground hover:text-white transition-colors">
-                                    <Minus className="w-4 h-4" />
+                {/* ── RIGHT PANEL ── */}
+                <aside className="sidebar-glass w-80 flex-shrink-0 border-l border-primary/10 flex flex-col overflow-hidden">
+
+                    {/* ── Properties ── */}
+                    {rightPanel === 'properties' && (
+                        <>
+                            <div className="flex flex-shrink-0 items-center justify-between border-b border-primary/10 p-6">
+                                <h2 className="text-sm font-bold text-white">
+                                    {selectedScreen === 'welcome' ? 'Welcome Screen'
+                                     : selectedScreen === 'end'   ? 'End Screen'
+                                     : selectedQuestion           ? 'Field Properties'
+                                     : 'Properties'}
+                                </h2>
+                                {selectedQuestion && (
+                                    <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-bold uppercase text-primary">
+                                        {selectedQuestion.type}
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+                                {/* Welcome Screen props */}
+                                {selectedScreen === 'welcome' && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between border-b border-primary/10 pb-4">
+                                            <div>
+                                                <p className="text-sm font-medium text-slate-200">Enable Screen</p>
+                                                <p className="text-[10px] text-slate-500">Show welcome screen to respondents</p>
+                                            </div>
+                                            <ToggleSwitch
+                                                checked={welcomeScreen?.enabled !== false}
+                                                onChange={v => updateWelcomeScreen({ enabled: v })}
+                                            />
+                                        </div>
+                                        <PropInput label="Title"       value={(welcomeScreen?.title as string) || ''}       onChange={v => updateWelcomeScreen({ title: v })}       placeholder="Welcome to our form" />
+                                        <PropInput label="Description" value={(welcomeScreen?.description as string) || ''} onChange={v => updateWelcomeScreen({ description: v })} placeholder="Description…"        />
+                                        <PropInput label="Button Text" value={(welcomeScreen?.buttonText as string) || ''} onChange={v => updateWelcomeScreen({ buttonText: v })} placeholder="Start"               />
+                                    </div>
+                                )}
+
+                                {/* End Screen props */}
+                                {selectedScreen === 'end' && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between border-b border-primary/10 pb-4">
+                                            <div>
+                                                <p className="text-sm font-medium text-slate-200">Enable Screen</p>
+                                                <p className="text-[10px] text-slate-500">Show end screen after submission</p>
+                                            </div>
+                                            <ToggleSwitch
+                                                checked={endScreen?.enabled !== false}
+                                                onChange={v => updateEndScreen({ enabled: v })}
+                                            />
+                                        </div>
+                                        <PropInput label="Title"        value={(endScreen?.title as string) || ''}       onChange={v => updateEndScreen({ title: v })}       placeholder="Thank you!"       />
+                                        <PropInput label="Description"  value={(endScreen?.description as string) || ''} onChange={v => updateEndScreen({ description: v })} placeholder="Message…"          />
+                                        <PropInput label="Button Text"  value={(endScreen?.buttonText as string) || ''} onChange={v => updateEndScreen({ buttonText: v })} placeholder="Submit another"   />
+                                        <PropInput label="Redirect URL" value={(endScreen?.redirectUrl as string) || ''} onChange={v => updateEndScreen({ redirectUrl: v })} placeholder="https://…"      />
+                                    </div>
+                                )}
+
+                                {/* Question props */}
+                                {selectedQuestion && (
+                                    <div className="space-y-6">
+                                        <PropInput
+                                            label="Field Label"
+                                            value={selectedQuestion.title}
+                                            onChange={v => updateQuestion(selectedQuestion.id, { title: v })}
+                                            placeholder="What is your name?"
+                                        />
+
+                                        {['text','email','number','url','website','paragraph'].includes(selectedQuestion.type) && (
+                                            <PropInput
+                                                label="Placeholder Text"
+                                                value={selectedQuestion.placeholder || ''}
+                                                onChange={v => updateQuestion(selectedQuestion.id, { placeholder: v })}
+                                                placeholder="e.g. John Doe"
+                                            />
+                                        )}
+
+                                        <PropInput
+                                            label="Description"
+                                            value={selectedQuestion.description || ''}
+                                            onChange={v => updateQuestion(selectedQuestion.id, { description: v })}
+                                            placeholder="Help text (optional)"
+                                        />
+
+                                        {/* Required toggle */}
+                                        <div className="flex items-center justify-between border-t border-primary/10 pt-4">
+                                            <div>
+                                                <p className="text-sm font-medium text-slate-200">Required Field</p>
+                                                <p className="text-[10px] text-slate-500">Users must fill this out</p>
+                                            </div>
+                                            <ToggleSwitch
+                                                checked={selectedQuestion.required}
+                                                onChange={v => updateQuestion(selectedQuestion.id, { required: v })}
+                                            />
+                                        </div>
+
+                                        {/* Validation Rules */}
+                                        <div className="border-t border-primary/10 pt-4">
+                                            <label className="mb-3 block text-xs font-medium text-slate-400">Validation Rules</label>
+                                            <div className="space-y-2">
+                                                <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-primary/30 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/5">
+                                                    <span className="material-symbols-outlined text-sm">add</span>
+                                                    Add Validation
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Options */}
+                                        {['choice','radio','checkbox','dropdown','picture-choice'].includes(selectedQuestion.type) && selectedQuestion.options && (
+                                            <div className="border-t border-primary/10 pt-4">
+                                                <label className="mb-3 block text-xs font-medium text-slate-400">Options</label>
+                                                <OptionsEditor
+                                                    options={selectedQuestion.options}
+                                                    onChange={newOpts => updateQuestion(selectedQuestion.id, { options: newOpts })}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Nothing selected */}
+                                {!selectedQuestion && !selectedScreen && (
+                                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                                        <span className="material-symbols-outlined mb-3 text-4xl text-slate-600">touch_app</span>
+                                        <p className="text-sm text-slate-500">Select a field on the canvas to edit its properties</p>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+
+                    {/* ── Settings ── */}
+                    {rightPanel === 'settings' && (
+                        <>
+                            <div className="flex flex-shrink-0 items-center justify-between border-b border-primary/10 p-6">
+                                <h2 className="text-sm font-bold text-white">Form Settings</h2>
+                                <button onClick={() => setRightPanel('properties')} className="text-slate-500 transition-colors hover:text-white">
+                                    <span className="material-symbols-outlined text-xl">close</span>
                                 </button>
                             </div>
-                        </div>
+                            <div className="flex-1 overflow-y-auto">
+                                <FormSettingsPanel settings={formSettings || {}} onChange={setFormSettings} />
+                            </div>
+                        </>
+                    )}
 
-                        <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
-                            {/* Welcome Screen Properties */}
-                            {selectedScreen === 'welcome' && (
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
-                                        <Label className="text-white cursor-pointer" onClick={() => updateWelcomeScreen({ enabled: !formSettings?.welcomeScreen?.enabled })}>Enable Screen</Label>
-                                        <input
-                                            type="checkbox"
-                                            checked={formSettings?.welcomeScreen?.enabled !== false}
-                                            onChange={(e) => updateWelcomeScreen({ enabled: e.target.checked })}
-                                            className="w-4 h-4 rounded border-white/20 bg-black/40 text-primary focus:ring-primary"
-                                        />
+                    {/* ── Share ── */}
+                    {rightPanel === 'share' && (
+                        <>
+                            <div className="flex flex-shrink-0 items-center justify-between border-b border-primary/10 p-6">
+                                <h2 className="text-sm font-bold text-white">Share & Embed</h2>
+                                <button onClick={() => setRightPanel('properties')} className="text-slate-500 transition-colors hover:text-white">
+                                    <span className="material-symbols-outlined text-xl">close</span>
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto">
+                                {formSlug ? (
+                                    <SharePanel formId={formId!} formSlug={formSlug} />
+                                ) : (
+                                    <div className="p-6 text-center">
+                                        <p className="mb-4 text-sm text-slate-500">Save your form first to generate a share link.</p>
+                                        <button onClick={() => doSave()} className="text-sm text-primary hover:underline">Save now</button>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-muted-foreground text-xs uppercase tracking-wider">Title</Label>
-                                        <Input
-                                            value={formSettings?.welcomeScreen?.title || ''}
-                                            onChange={(e) => updateWelcomeScreen({ title: e.target.value })}
-                                            placeholder="Welcome to our form"
-                                            className="bg-white/5 border-white/10"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-muted-foreground text-xs uppercase tracking-wider">Description</Label>
-                                        <Input
-                                            value={formSettings?.welcomeScreen?.description || ''}
-                                            onChange={(e) => updateWelcomeScreen({ description: e.target.value })}
-                                            placeholder="Description..."
-                                            className="bg-white/5 border-white/10"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-muted-foreground text-xs uppercase tracking-wider">Button Text</Label>
-                                        <Input
-                                            value={formSettings?.welcomeScreen?.buttonText || ''}
-                                            onChange={(e) => updateWelcomeScreen({ buttonText: e.target.value })}
-                                            placeholder="Start"
-                                            className="bg-white/5 border-white/10"
-                                        />
-                                    </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
+                        </>
+                    )}
+                </aside>
+            </div>
 
-                            {/* End Screen Properties */}
-                            {selectedScreen === 'end' && (
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
-                                        <Label className="text-white cursor-pointer" onClick={() => updateEndScreen({ enabled: !formSettings?.endScreen?.enabled })}>Enable Screen</Label>
-                                        <input
-                                            type="checkbox"
-                                            checked={formSettings?.endScreen?.enabled !== false}
-                                            onChange={(e) => updateEndScreen({ enabled: e.target.checked })}
-                                            className="w-4 h-4 rounded border-white/20 bg-black/40 text-primary focus:ring-primary"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-muted-foreground text-xs uppercase tracking-wider">Title</Label>
-                                        <Input
-                                            value={formSettings?.endScreen?.title || ''}
-                                            onChange={(e) => updateEndScreen({ title: e.target.value })}
-                                            placeholder="Thank you!"
-                                            className="bg-white/5 border-white/10"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-muted-foreground text-xs uppercase tracking-wider">Description</Label>
-                                        <Input
-                                            value={formSettings?.endScreen?.description || ''}
-                                            onChange={(e) => updateEndScreen({ description: e.target.value })}
-                                            placeholder="Message..."
-                                            className="bg-white/5 border-white/10"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-muted-foreground text-xs uppercase tracking-wider">Button Text</Label>
-                                        <Input
-                                            value={formSettings?.endScreen?.buttonText || ''}
-                                            onChange={(e) => updateEndScreen({ buttonText: e.target.value })}
-                                            placeholder="Submit another"
-                                            className="bg-white/5 border-white/10"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-muted-foreground text-xs uppercase tracking-wider">Redirect URL</Label>
-                                        <Input
-                                            value={formSettings?.endScreen?.redirectUrl || ''}
-                                            onChange={(e) => updateEndScreen({ redirectUrl: e.target.value })}
-                                            placeholder="https://..."
-                                            className="bg-white/5 border-white/10"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Question Properties */}
-                            {selectedQuestion && (
-                                <div className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-muted-foreground text-xs uppercase tracking-wider">Question Text</Label>
-                                        <Input
-                                            value={selectedQuestion.title}
-                                            onChange={(e) => updateQuestion(selectedQuestion.id, { title: e.target.value })}
-                                            placeholder="What is your name?"
-                                            className="bg-white/5 border-white/10 h-9"
-                                        />
-                                    </div>
-
-                                    {['text', 'email', 'number', 'url', 'website', 'paragraph'].includes(selectedQuestion.type) && (
-                                        <div className="space-y-2">
-                                            <Label className="text-muted-foreground text-xs uppercase tracking-wider">Placeholder</Label>
-                                            <Input
-                                                value={selectedQuestion.placeholder || ''}
-                                                onChange={(e) => updateQuestion(selectedQuestion.id, { placeholder: e.target.value })}
-                                                placeholder="e.g. John Doe"
-                                                className="bg-white/5 border-white/10"
-                                            />
-                                        </div>
-                                    )}
-
-                                    <div className="space-y-2">
-                                        <Label className="text-muted-foreground text-xs uppercase tracking-wider">Description</Label>
-                                        <Input
-                                            value={selectedQuestion.description || ''}
-                                            onChange={(e) => updateQuestion(selectedQuestion.id, { description: e.target.value })}
-                                            className="bg-white/5 border-white/10"
-                                        />
-                                    </div>
-
-                                    <div className="flex items-center justify-between p-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
-                                        <Label className="text-white cursor-pointer" onClick={() => updateQuestion(selectedQuestion.id, { required: !selectedQuestion.required })}>Required Field</Label>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedQuestion.required}
-                                            onChange={(e) => updateQuestion(selectedQuestion.id, { required: e.target.checked })}
-                                            className="w-4 h-4 rounded border-white/20 bg-black/40 text-primary focus:ring-primary"
-                                        />
-                                    </div>
-
-                                    {['choice', 'radio', 'checkbox', 'dropdown', 'picture-choice'].includes(selectedQuestion.type) && selectedQuestion.options && (
-                                        <div className="space-y-4 pt-4 border-t border-white/10">
-                                            <Label className="text-muted-foreground text-xs uppercase tracking-wider">Options</Label>
-                                            <OptionsEditor
-                                                options={selectedQuestion.options}
-                                                onChange={(newOptions) => updateQuestion(selectedQuestion.id, { options: newOptions })}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+            {/* ═══════════════════════════════════════════════════════════════
+                BOTTOM STATUS BAR
+            ═══════════════════════════════════════════════════════════════ */}
+            <footer className="flex h-10 flex-shrink-0 items-center justify-between border-t border-primary/10 bg-[#0B0E14] px-6 text-[10px] font-medium text-slate-500 z-50">
+                <div className="flex items-center gap-4">
+                    <span className="flex items-center gap-1.5">
+                        <span
+                            className="material-symbols-outlined"
+                            style={{ fontSize: '14px', color: lastSaved ? '#22c55e' : saving ? '#f59e0b' : '#64748b' }}
+                        >
+                            {saving ? 'sync' : 'check_circle'}
+                        </span>
+                        {lastSaved ? 'Auto-saved' : saving ? 'Saving…' : 'Unsaved changes'}
+                    </span>
+                    <span>{questions.length} Component{questions.length !== 1 ? 's' : ''}</span>
+                    <span>{flows.length} Flow{flows.length !== 1 ? 's' : ''} Active</span>
+                </div>
+                <div className="flex items-center gap-4">
+                    <Link href="/admin" className="transition-colors hover:text-primary">← Dashboard</Link>
+                    <button className="transition-colors hover:text-primary">Documentation</button>
+                    <button onClick={() => setRightPanel('share')} className="transition-colors hover:text-primary">API Keys</button>
+                    <div className="flex items-center gap-1.5 rounded-full bg-slate-900 px-2 py-0.5">
+                        <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>zoom_in</span>
+                        <span>100%</span>
                     </div>
-                )
-            }
-        </div >
+                </div>
+            </footer>
+        </div>
     );
 }
 
-function ToolButton({ icon: Icon, label, onClick, disabled }: { icon: any, label: string, onClick: () => void, disabled?: boolean }) {
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+/** Purple pill toggle — matches the Stitch sample exactly */
+function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
     return (
         <button
-            onClick={onClick}
-            disabled={disabled}
-            className="flex flex-col items-center justify-center p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(130,87,229,0.2)] transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+            onClick={() => onChange(!checked)}
+            className={cn(
+                'relative h-6 w-11 rounded-full p-1 transition-colors duration-200',
+                checked ? 'bg-primary' : 'bg-slate-700'
+            )}
         >
-            <Icon className="w-5 h-5 mb-2 text-muted-foreground group-hover:text-primary-300 transition-colors" />
-            <span className="text-xs font-medium text-muted-foreground group-hover:text-white">{label}</span>
+            <div className={cn(
+                'h-4 w-4 rounded-full bg-white shadow transition-transform duration-200',
+                checked ? 'translate-x-5' : 'translate-x-0'
+            )} />
         </button>
-    )
+    );
+}
+
+/** Labelled text input for the properties panel */
+function PropInput({
+    label, value, onChange, placeholder
+}: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+    return (
+        <div>
+            <label className="mb-2 block text-xs font-medium text-slate-400">{label}</label>
+            <input
+                type="text"
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                placeholder={placeholder}
+                className="w-full rounded-lg border border-primary/10 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary"
+            />
+        </div>
+    );
 }

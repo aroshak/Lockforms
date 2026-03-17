@@ -16,28 +16,28 @@ export default function UserMenu() {
         .slice(0, 2);
 
     return (
-        <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">
+        <div className="flex items-center gap-3 p-2 rounded-lg bg-slate-800/50">
+            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0 overflow-hidden">
                 {session.user.image ? (
-                    <img src={session.user.image} alt="" className="w-full h-full rounded-lg object-cover" />
+                    <img src={session.user.image} alt="" className="w-full h-full object-cover" />
                 ) : (
                     initials
                 )}
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">
-                    {session.user.name || session.user.email}
+                <p className="text-xs font-semibold text-white truncate">
+                    {session.user.name || session.user.email?.split('@')[0]}
                 </p>
-                <p className="text-[10px] text-muted-foreground truncate">
+                <p className="text-[10px] text-slate-500 truncate">
                     {session.user.email}
                 </p>
             </div>
             <button
                 onClick={() => signOut({ callbackUrl: '/admin/login' })}
-                className="p-2 rounded-lg hover:bg-red-500/10 hover:text-red-400 text-muted-foreground transition-colors"
+                className="p-1.5 rounded-lg hover:bg-red-500/10 hover:text-red-400 text-slate-500 transition-colors flex-shrink-0"
                 title="Sign out"
             >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-3.5 h-3.5" />
             </button>
         </div>
     );
