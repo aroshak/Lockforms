@@ -2,6 +2,9 @@
 
 import prisma from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import { verifyLicenseString } from '@/lib/license/validator';
+import { getHardwareFingerprint, getHardwareSummary } from '@/lib/license/hardware';
+import { createHash, randomBytes } from 'crypto';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -316,25 +319,252 @@ export async function activateLicense(
     licenseJson: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const parsed = JSON.parse(licenseJson) as { data?: LicenseData; signature?: string };
-        if (!parsed.data || !parsed.signature) {
-            return { success: false, error: 'Invalid license format. Expected { data, signature }.' };
+        const hardwareId = getHardwareFingerprint();
+        const result = verifyLicenseString(licenseJson, hardwareId);
+
+        if (!result.valid) {
+            return { success: false, error: result.reason ?? 'License validation failed.' };
         }
 
-        // Store the raw license key for future validation
+        // Store the raw license key
         await setConfig('license_key', licenseJson);
 
-        // Store status (real RSA verification goes in src/lib/license/validator.ts)
+        // Store validated status
         const status: LicenseStatus = {
             valid: true,
-            data: parsed.data,
+            data: result.data,
+            reason: result.reason, // may contain "expires in X days" warning
             lastCheckedAt: new Date().toISOString(),
         };
         await setConfig('license_status', status);
 
         revalidatePath('/admin/settings');
+        revalidatePath('/admin');
         return { success: true };
     } catch {
         return { success: false, error: 'Invalid license JSON. Please check the format.' };
+    }
+}
+
+// ── Hardware Info ─────────────────────────────────────────────────────────
+
+export async function getHardwareInfo(): Promise<{ fingerprint: string; summary: string }> {
+    return {
+        fingerprint: getHardwareFingerprint(),
+        summary: getHardwareSummary(),
+    };
+}
+
+// ── Re-validate stored license (called on startup / 24h timer) ────────────
+
+export async function revalidateLicense(): Promise<LicenseStatus> {
+    const stored = await getConfig('license_key') as string | null;
+    if (!stored) {
+        const status: LicenseStatus = { valid: false, reason: 'No license installed.' };
+        await setConfig('license_status', status);
+        return status;
+    }
+
+    const hardwareId = getHardwareFingerprint();
+    const result = verifyLicenseString(typeof stored === 'string' ? stored : JSON.stringify(stored), hardwareId);
+
+    const status: LicenseStatus = {
+        valid: result.valid,
+        reason: result.reason,
+        data: result.data,
+        lastCheckedAt: new Date().toISOString(),
+    };
+    await setConfig('license_status', status);
+    revalidatePath('/admin');
+    return status;
+}
+
+// ── API Keys ──────────────────────────────────────────────────────────────
+
+export interface ApiKeyRecord {
+    id: string;
+    name: string;
+    prefix: string;
+    scopes: string[];
+    isActive: boolean;
+    lastUsedAt: string | null;
+    expiresAt: string | null;
+    createdAt: string;
+}
+
+export async function getApiKeys(): Promise<ApiKeyRecord[]> {
+    const keys = await prisma.apiKey.findMany({
+        orderBy: { createdAt: 'desc' },
+    });
+    return keys.map(k => ({
+        id: k.id,
+        name: k.name,
+        prefix: k.prefix,
+        scopes: k.scopes,
+        isActive: k.isActive,
+        lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+        expiresAt: k.expiresAt?.toISOString() ?? null,
+        createdAt: k.createdAt.toISOString(),
+    }));
+}
+
+export async function createApiKey(
+    name: string,
+    scopes: string[],
+    expiresAt?: string,
+): Promise<{ success: boolean; key?: string; record?: ApiKeyRecord; error?: string }> {
+    try {
+        // Generate: lf_live_ + 32 random hex bytes
+        const rawRandom = randomBytes(24).toString('hex');
+        const rawKey = `lf_live_${rawRandom}`;
+        const keyHash = createHash('sha256').update(rawKey).digest('hex');
+        const prefix = rawKey.substring(0, 16); // "lf_live_xxxxxxxx"
+
+        const record = await prisma.apiKey.create({
+            data: {
+                name,
+                keyHash,
+                prefix,
+                scopes,
+                expiresAt: expiresAt ? new Date(expiresAt) : null,
+            },
+        });
+
+        revalidatePath('/admin/settings');
+        return {
+            success: true,
+            key: rawKey, // shown ONCE — not stored
+            record: {
+                id: record.id,
+                name: record.name,
+                prefix: record.prefix,
+                scopes: record.scopes,
+                isActive: record.isActive,
+                lastUsedAt: null,
+                expiresAt: record.expiresAt?.toISOString() ?? null,
+                createdAt: record.createdAt.toISOString(),
+            },
+        };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'Failed to create API key.' };
+    }
+}
+
+export async function revokeApiKey(
+    id: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        await prisma.apiKey.update({
+            where: { id },
+            data: { isActive: false },
+        });
+        revalidatePath('/admin/settings');
+        return { success: true };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'Failed to revoke API key.' };
+    }
+}
+
+export async function deleteApiKey(
+    id: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        await prisma.apiKey.delete({ where: { id } });
+        revalidatePath('/admin/settings');
+        return { success: true };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'Failed to delete API key.' };
+    }
+}
+
+// ── Webhooks ──────────────────────────────────────────────────────────────
+
+export interface WebhookRecord {
+    id: string;
+    name: string;
+    url: string;
+    events: string[];
+    isActive: boolean;
+    failureCount: number;
+    lastDeliveredAt: string | null;
+    createdAt: string;
+}
+
+export async function getWebhooks(): Promise<WebhookRecord[]> {
+    const hooks = await prisma.webhook.findMany({
+        orderBy: { createdAt: 'desc' },
+    });
+    return hooks.map(h => ({
+        id: h.id,
+        name: h.name,
+        url: h.url,
+        events: h.events,
+        isActive: h.isActive,
+        failureCount: h.failureCount,
+        lastDeliveredAt: h.lastDeliveredAt?.toISOString() ?? null,
+        createdAt: h.createdAt.toISOString(),
+    }));
+}
+
+export async function createWebhook(
+    name: string,
+    url: string,
+    events: string[],
+): Promise<{ success: boolean; secret?: string; record?: WebhookRecord; error?: string }> {
+    try {
+        const secret = `whsec_${randomBytes(32).toString('hex')}`;
+
+        const hook = await prisma.webhook.create({
+            data: { name, url, events, secret },
+        });
+
+        revalidatePath('/admin/settings');
+        return {
+            success: true,
+            secret, // shown ONCE
+            record: {
+                id: hook.id,
+                name: hook.name,
+                url: hook.url,
+                events: hook.events,
+                isActive: hook.isActive,
+                failureCount: 0,
+                lastDeliveredAt: null,
+                createdAt: hook.createdAt.toISOString(),
+            },
+        };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'Failed to create webhook.' };
+    }
+}
+
+export async function toggleWebhook(
+    id: string,
+    isActive: boolean,
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        await prisma.webhook.update({ where: { id }, data: { isActive } });
+        revalidatePath('/admin/settings');
+        return { success: true };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'Failed to update webhook.' };
+    }
+}
+
+export async function deleteWebhook(
+    id: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        await prisma.webhook.delete({ where: { id } });
+        revalidatePath('/admin/settings');
+        return { success: true };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'Failed to delete webhook.' };
     }
 }

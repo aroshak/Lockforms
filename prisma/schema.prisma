@@ -242,6 +242,50 @@ model SystemConfig {
 }
 
 // ============================================
+// API Keys
+// ============================================
+model ApiKey {
+  id             String    @id @default(cuid())
+  name           String
+  keyHash        String    @unique  // SHA-256 of the raw key (never store raw)
+  prefix         String              // First 16 chars for display (e.g. "lf_live_xxxxxxxx")
+  scopes         String[]            // ["forms:read", "submissions:read", "forms:write"]
+  organizationId String?
+  createdById    String?
+  isActive       Boolean   @default(true)
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([keyHash])
+  @@index([organizationId])
+}
+
+// ============================================
+// Webhooks
+// ============================================
+model Webhook {
+  id              String    @id @default(cuid())
+  name            String
+  url             String    @db.Text
+  events          String[]  // ["submission.created", "form.published", "form.deleted"]
+  secret          String    @db.Text  // HMAC-SHA256 signing secret (shown once)
+  isActive        Boolean   @default(true)
+  organizationId  String?
+  formId          String?             // Optional: scoped to a specific form
+  lastDeliveredAt DateTime?
+  failureCount    Int       @default(0)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([isActive, organizationId])
+}
+
+// ============================================
 // Audit Log (Security tracking)
 // ============================================
 model AuditLog {

@@ -1,4 +1,3 @@
-import { Plus, BarChart2, Clock, Hash, FileText, Copy, Trash2 } from 'lucide-react';
 import prisma from '@/lib/db';
 import Link from 'next/link';
 import { DeleteFormButton } from './DeleteFormButton';

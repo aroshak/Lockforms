@@ -1,7 +1,23 @@
-import AuthProvider from "@/components/AuthProvider";
-import { AdminSidebar } from "@/components/AdminSidebar";
+import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import AuthProvider from '@/components/AuthProvider';
+import { AdminSidebar } from '@/components/AdminSidebar';
+import { getLicenseStatus } from './settings/actions';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+
+    // ── License gate (authenticated users only) ──────────────────────────
+    // Unauthenticated users are allowed through so they can reach /admin/login.
+    // The NextAuth middleware handles redirecting them there automatically.
+    const session = await getServerSession(authOptions);
+    if (session) {
+        const license = await getLicenseStatus();
+        if (!license.valid) {
+            redirect('/license-expired');
+        }
+    }
+
     return (
         <AuthProvider>
             <div className="flex min-h-screen bg-[#0B0E14] text-foreground selection:bg-primary/30">

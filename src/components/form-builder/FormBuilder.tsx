@@ -575,7 +575,7 @@ export function FormBuilder({ formId }: { formId?: string }) {
                                                 <p className="text-[10px] text-slate-500">Users must fill this out</p>
                                             </div>
                                             <ToggleSwitch
-                                                checked={selectedQuestion.required}
+                                                checked={selectedQuestion.required ?? false}
                                                 onChange={v => updateQuestion(selectedQuestion.id, { required: v })}
                                             />
                                         </div>

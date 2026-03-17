@@ -49,6 +49,7 @@ Desktop.ini
 *.pem
 private*.json
 license-private*
+keys/           # RSA key pair dir (see src/scripts/generate-keypair.ts)
 
 # Tools output
 tools/output/

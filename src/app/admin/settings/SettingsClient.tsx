@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import {
     Settings, Shield, Zap, Key, Cpu,
     Save, AlertCircle, CheckCircle2, ChevronDown,
-    Plus, Trash2, TestTube2, ToggleLeft, ToggleRight,
+    Plus, Trash2, TestTube2,
     Upload, RefreshCw, Lock, Globe, Server,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,13 @@ import {
     saveGeneralSettings, saveSecurityPolicies,
     saveLdapConfig, saveSamlConfig, saveAiConfig,
     activateLicense, testLdapConnection, checkAiSidecarStatus,
+    createApiKey, revokeApiKey, deleteApiKey,
+    createWebhook, toggleWebhook, deleteWebhook,
 } from './actions';
 import type {
     GeneralSettings, SecurityPolicyValues,
     LdapConfig, SamlConfig, AiConfig, LicenseStatus,
+    ApiKeyRecord, WebhookRecord,
 } from './actions';
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -30,6 +33,8 @@ interface Props {
     saml: SamlConfig;
     ai: AiConfig;
     license: LicenseStatus;
+    apiKeys: ApiKeyRecord[];
+    webhooks: WebhookRecord[];
 }
 
 // ── Toggle Switch ─────────────────────────────────────────────────────────
@@ -94,7 +99,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 // ── Main Component ────────────────────────────────────────────────────────
 
-export function SettingsClient({ general, policies, ldap, saml, ai, license }: Props) {
+export function SettingsClient({ general, policies, ldap, saml, ai, license, apiKeys, webhooks }: Props) {
     const [activeTab, setActiveTab] = useState<Tab>('general');
     const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -152,7 +157,14 @@ export function SettingsClient({ general, policies, ldap, saml, ai, license }: P
                         onError={(m) => showToast('error', m)}
                     />
                 )}
-                {activeTab === 'api' && <ApiTab />}
+                {activeTab === 'api' && (
+                    <ApiTab
+                        initialKeys={apiKeys}
+                        initialWebhooks={webhooks}
+                        onSuccess={(m) => showToast('success', m)}
+                        onError={(m) => showToast('error', m)}
+                    />
+                )}
                 {activeTab === 'ai' && (
                     <AiTab
                         ai={ai}
@@ -676,61 +688,395 @@ function AuthTab({ ldap, saml, onSuccess, onError }: {
 
 // ── API Tab ───────────────────────────────────────────────────────────────
 
-function ApiTab() {
+const API_SCOPES = ['forms:read', 'forms:write', 'submissions:read', 'submissions:export', 'users:read'];
+const WEBHOOK_EVENTS = ['submission.created', 'form.published', 'form.updated', 'form.deleted', 'user.created', 'user.login'];
+
+function ApiTab({
+    initialKeys,
+    initialWebhooks,
+    onSuccess,
+    onError,
+}: {
+    initialKeys: ApiKeyRecord[];
+    initialWebhooks: WebhookRecord[];
+    onSuccess: (m: string) => void;
+    onError: (m: string) => void;
+}) {
+    const [isPending, startTransition] = useTransition();
+
+    // API Keys state
+    const [keys, setKeys] = useState<ApiKeyRecord[]>(initialKeys);
+    const [showKeyModal, setShowKeyModal] = useState(false);
+    const [newKeyName, setNewKeyName] = useState('');
+    const [newKeyScopes, setNewKeyScopes] = useState<string[]>(['forms:read', 'submissions:read']);
+    const [createdKey, setCreatedKey] = useState<string | null>(null);
+
+    // Webhooks state
+    const [hooks, setHooks] = useState<WebhookRecord[]>(initialWebhooks);
+    const [showHookModal, setShowHookModal] = useState(false);
+    const [newHookName, setNewHookName] = useState('');
+    const [newHookUrl, setNewHookUrl] = useState('');
+    const [newHookEvents, setNewHookEvents] = useState<string[]>(['submission.created']);
+    const [createdSecret, setCreatedSecret] = useState<string | null>(null);
+
+    const handleCreateKey = () => {
+        if (!newKeyName.trim() || newKeyScopes.length === 0) return;
+        startTransition(async () => {
+            const r = await createApiKey(newKeyName.trim(), newKeyScopes);
+            if (r.success && r.record && r.key) {
+                setKeys(prev => [r.record!, ...prev]);
+                setCreatedKey(r.key!);
+                setNewKeyName('');
+                setNewKeyScopes(['forms:read', 'submissions:read']);
+            } else {
+                onError(r.error ?? 'Failed to create API key.');
+                setShowKeyModal(false);
+            }
+        });
+    };
+
+    const handleRevokeKey = (id: string) => {
+        startTransition(async () => {
+            const r = await revokeApiKey(id);
+            if (r.success) {
+                setKeys(prev => prev.map(k => k.id === id ? { ...k, isActive: false } : k));
+                onSuccess('API key revoked.');
+            } else {
+                onError(r.error ?? 'Failed.');
+            }
+        });
+    };
+
+    const handleDeleteKey = (id: string) => {
+        startTransition(async () => {
+            const r = await deleteApiKey(id);
+            if (r.success) {
+                setKeys(prev => prev.filter(k => k.id !== id));
+                onSuccess('API key deleted.');
+            } else {
+                onError(r.error ?? 'Failed.');
+            }
+        });
+    };
+
+    const handleCreateHook = () => {
+        if (!newHookName.trim() || !newHookUrl.trim() || newHookEvents.length === 0) return;
+        startTransition(async () => {
+            const r = await createWebhook(newHookName.trim(), newHookUrl.trim(), newHookEvents);
+            if (r.success && r.record && r.secret) {
+                setHooks(prev => [r.record!, ...prev]);
+                setCreatedSecret(r.secret!);
+                setNewHookName('');
+                setNewHookUrl('');
+                setNewHookEvents(['submission.created']);
+            } else {
+                onError(r.error ?? 'Failed to create webhook.');
+                setShowHookModal(false);
+            }
+        });
+    };
+
+    const handleToggleHook = (id: string, current: boolean) => {
+        startTransition(async () => {
+            const r = await toggleWebhook(id, !current);
+            if (r.success) {
+                setHooks(prev => prev.map(h => h.id === id ? { ...h, isActive: !current } : h));
+                onSuccess(`Webhook ${!current ? 'enabled' : 'disabled'}.`);
+            } else {
+                onError(r.error ?? 'Failed.');
+            }
+        });
+    };
+
+    const handleDeleteHook = (id: string) => {
+        startTransition(async () => {
+            const r = await deleteWebhook(id);
+            if (r.success) {
+                setHooks(prev => prev.filter(h => h.id !== id));
+                onSuccess('Webhook deleted.');
+            } else {
+                onError(r.error ?? 'Failed.');
+            }
+        });
+    };
+
     return (
         <>
             <div>
                 <h2 className="text-2xl font-bold text-white">API & Webhooks</h2>
-                <p className="text-sm text-slate-400 mt-1">Programmatic access and event notifications.</p>
+                <p className="text-sm text-slate-400 mt-1">Programmatic access and real-time event notifications.</p>
             </div>
 
-            <SectionCard title="REST API" description="Access LockForms data programmatically using API keys.">
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-primary/5 border border-primary/10">
-                    <Zap className="w-5 h-5 text-primary flex-shrink-0" />
-                    <div>
-                        <p className="text-sm font-medium text-white">API Integration — Coming Soon</p>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                            REST API v1 with scoped API keys, rate limiting, and full form & submission management.
-                            Planned for the next release.
-                        </p>
-                    </div>
+            {/* ── API Keys ── */}
+            <SectionCard title="API Keys" description="Scoped bearer tokens for REST API access. Keys are shown only once on creation.">
+                <div className="flex justify-between items-center">
+                    <p className="text-xs text-slate-400">{keys.length} key{keys.length !== 1 ? 's' : ''} total</p>
+                    <button
+                        onClick={() => { setShowKeyModal(true); setCreatedKey(null); }}
+                        className="flex items-center gap-1.5 bg-primary text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-lg shadow-primary/20 hover:brightness-110 transition-all"
+                    >
+                        <Plus className="w-3.5 h-3.5" /> New Key
+                    </button>
                 </div>
-                <div className="space-y-3">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Planned Endpoints</p>
-                    {[
-                        ['GET /api/v1/forms', 'List and manage forms'],
-                        ['GET /api/v1/forms/:id/submissions', 'Retrieve form submissions'],
-                        ['POST /api/v1/forms/:slug/submit', 'Submit form answers externally'],
-                        ['GET /api/v1/users', 'User management'],
-                    ].map(([endpoint, desc]) => (
-                        <div key={endpoint} className="flex items-center gap-3 p-3 rounded-lg bg-slate-900/30 border border-white/[0.04]">
-                            <code className="text-xs text-primary font-mono">{endpoint}</code>
-                            <span className="text-xs text-slate-500">— {desc}</span>
-                        </div>
-                    ))}
-                </div>
-            </SectionCard>
 
-            <SectionCard title="Webhooks" description="Receive real-time notifications when events occur in LockForms.">
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-primary/5 border border-primary/10">
-                    <Server className="w-5 h-5 text-primary flex-shrink-0" />
-                    <div>
-                        <p className="text-sm font-medium text-white">Webhooks — Coming Soon</p>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                            Push events to your CRM, Slack, or any HTTP endpoint. HMAC-SHA256 signed payloads
-                            with retry logic and delivery history.
-                        </p>
+                {/* New key modal */}
+                {showKeyModal && (
+                    <div className="glass border border-primary/20 rounded-xl p-4 space-y-3">
+                        {createdKey ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+                                    <CheckCircle2 className="w-4 h-4" /> Key created — copy it now. It won&apos;t be shown again.
+                                </div>
+                                <div className="flex items-center gap-2 bg-slate-900/60 rounded-lg p-3 border border-emerald-500/20">
+                                    <code className="text-xs text-emerald-300 font-mono flex-1 break-all">{createdKey}</code>
+                                </div>
+                                <button onClick={() => { setShowKeyModal(false); setCreatedKey(null); }}
+                                    className="text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                                    I&apos;ve copied it — close
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <Field label="Key Name">
+                                    <input
+                                        className="w-full bg-primary/5 border border-primary/20 focus:border-primary/50 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 outline-none transition-colors"
+                                        placeholder="e.g. CI/CD Pipeline, CRM Integration"
+                                        value={newKeyName}
+                                        onChange={e => setNewKeyName(e.target.value)}
+                                    />
+                                </Field>
+                                <Field label="Scopes">
+                                    <div className="flex flex-wrap gap-2">
+                                        {API_SCOPES.map(scope => (
+                                            <button
+                                                key={scope}
+                                                type="button"
+                                                onClick={() => setNewKeyScopes(prev =>
+                                                    prev.includes(scope) ? prev.filter(s => s !== scope) : [...prev, scope]
+                                                )}
+                                                className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-medium transition-colors ${
+                                                    newKeyScopes.includes(scope)
+                                                        ? 'bg-primary text-white'
+                                                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                                }`}
+                                            >
+                                                {scope}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </Field>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handleCreateKey}
+                                        disabled={isPending || !newKeyName.trim() || newKeyScopes.length === 0}
+                                        className="flex items-center gap-1.5 bg-primary text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:brightness-110 disabled:opacity-50 transition-all"
+                                    >
+                                        {isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
+                                        Generate Key
+                                    </button>
+                                    <button onClick={() => setShowKeyModal(false)}
+                                        className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 transition-colors">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
-                </div>
-                <div className="space-y-2">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Planned Events</p>
-                    <div className="grid grid-cols-2 gap-2">
-                        {['submission.created', 'submission.sentiment', 'form.published', 'form.updated', 'user.created', 'user.login'].map(event => (
-                            <div key={event} className="px-3 py-2 rounded-lg bg-slate-900/30 border border-white/[0.04] text-xs font-mono text-slate-400">
-                                {event}
+                )}
+
+                {/* Keys list */}
+                {keys.length === 0 ? (
+                    <div className="text-center py-6 text-slate-500 text-sm">No API keys yet. Create one to get started.</div>
+                ) : (
+                    <div className="space-y-2">
+                        {keys.map(key => (
+                            <div key={key.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-900/30 border border-white/[0.04]">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-white truncate">{key.name}</span>
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${key.isActive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
+                                            {key.isActive ? 'Active' : 'Revoked'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <code className="text-xs text-slate-500 font-mono">{key.prefix}…</code>
+                                        <span className="text-slate-700">·</span>
+                                        <span className="text-[11px] text-slate-500">
+                                            {key.scopes.slice(0, 3).join(', ')}{key.scopes.length > 3 ? ` +${key.scopes.length - 3}` : ''}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex gap-1 flex-shrink-0">
+                                    {key.isActive && (
+                                        <button onClick={() => handleRevokeKey(key.id)} disabled={isPending}
+                                            className="px-2.5 py-1 rounded-lg text-[11px] text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition-colors disabled:opacity-50">
+                                            Revoke
+                                        </button>
+                                    )}
+                                    <button onClick={() => handleDeleteKey(key.id)} disabled={isPending}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
+                )}
+            </SectionCard>
+
+            {/* ── Webhooks ── */}
+            <SectionCard title="Webhooks" description="Receive HMAC-SHA256 signed HTTP POST events when things happen in LockForms.">
+                <div className="flex justify-between items-center">
+                    <p className="text-xs text-slate-400">{hooks.length} webhook{hooks.length !== 1 ? 's' : ''} configured</p>
+                    <button
+                        onClick={() => { setShowHookModal(true); setCreatedSecret(null); }}
+                        className="flex items-center gap-1.5 bg-primary text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-lg shadow-primary/20 hover:brightness-110 transition-all"
+                    >
+                        <Plus className="w-3.5 h-3.5" /> New Webhook
+                    </button>
+                </div>
+
+                {/* New webhook modal */}
+                {showHookModal && (
+                    <div className="glass border border-primary/20 rounded-xl p-4 space-y-3">
+                        {createdSecret ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+                                    <CheckCircle2 className="w-4 h-4" /> Webhook created — save this signing secret now.
+                                </div>
+                                <div className="bg-slate-900/60 rounded-lg p-3 border border-emerald-500/20">
+                                    <p className="text-[11px] text-slate-500 mb-1">Signing Secret (shown once):</p>
+                                    <code className="text-xs text-emerald-300 font-mono break-all">{createdSecret}</code>
+                                </div>
+                                <button onClick={() => { setShowHookModal(false); setCreatedSecret(null); }}
+                                    className="text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                                    I&apos;ve saved it — close
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <Field label="Webhook Name">
+                                    <input
+                                        className="w-full bg-primary/5 border border-primary/20 focus:border-primary/50 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 outline-none transition-colors"
+                                        placeholder="e.g. Slack Notifications, CRM Sync"
+                                        value={newHookName}
+                                        onChange={e => setNewHookName(e.target.value)}
+                                    />
+                                </Field>
+                                <Field label="Endpoint URL">
+                                    <input
+                                        className="w-full bg-primary/5 border border-primary/20 focus:border-primary/50 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 outline-none transition-colors"
+                                        placeholder="https://your-server.com/webhooks/lockforms"
+                                        value={newHookUrl}
+                                        onChange={e => setNewHookUrl(e.target.value)}
+                                    />
+                                </Field>
+                                <Field label="Events">
+                                    <div className="flex flex-wrap gap-2">
+                                        {WEBHOOK_EVENTS.map(event => (
+                                            <button
+                                                key={event}
+                                                type="button"
+                                                onClick={() => setNewHookEvents(prev =>
+                                                    prev.includes(event) ? prev.filter(e => e !== event) : [...prev, event]
+                                                )}
+                                                className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-medium transition-colors ${
+                                                    newHookEvents.includes(event)
+                                                        ? 'bg-primary text-white'
+                                                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                                }`}
+                                            >
+                                                {event}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </Field>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handleCreateHook}
+                                        disabled={isPending || !newHookName.trim() || !newHookUrl.trim() || newHookEvents.length === 0}
+                                        className="flex items-center gap-1.5 bg-primary text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:brightness-110 disabled:opacity-50 transition-all"
+                                    >
+                                        {isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Server className="w-3.5 h-3.5" />}
+                                        Create Webhook
+                                    </button>
+                                    <button onClick={() => setShowHookModal(false)}
+                                        className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 transition-colors">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Hooks list */}
+                {hooks.length === 0 ? (
+                    <div className="text-center py-6 text-slate-500 text-sm">No webhooks yet. Create one to start receiving events.</div>
+                ) : (
+                    <div className="space-y-2">
+                        {hooks.map(hook => (
+                            <div key={hook.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-900/30 border border-white/[0.04]">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-white truncate">{hook.name}</span>
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${hook.isActive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
+                                            {hook.isActive ? 'Active' : 'Disabled'}
+                                        </span>
+                                        {hook.failureCount > 0 && (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400">
+                                                {hook.failureCount} failure{hook.failureCount !== 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <code className="text-[11px] text-slate-500 font-mono truncate max-w-48">{hook.url}</code>
+                                        <span className="text-slate-700 flex-shrink-0">·</span>
+                                        <span className="text-[11px] text-slate-500 flex-shrink-0">
+                                            {hook.events.slice(0, 2).join(', ')}{hook.events.length > 2 ? ` +${hook.events.length - 2}` : ''}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex gap-1 flex-shrink-0">
+                                    <button onClick={() => handleToggleHook(hook.id, hook.isActive)} disabled={isPending}
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] transition-colors disabled:opacity-50 ${
+                                            hook.isActive
+                                                ? 'text-slate-400 bg-slate-800/60 hover:bg-slate-700'
+                                                : 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'
+                                        }`}>
+                                        {hook.isActive ? 'Disable' : 'Enable'}
+                                    </button>
+                                    <button onClick={() => handleDeleteHook(hook.id)} disabled={isPending}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </SectionCard>
+
+            {/* ── Endpoint Reference ── */}
+            <SectionCard title="REST API Reference" description="Use your API key in the Authorization header: Bearer lf_live_...">
+                <div className="space-y-2">
+                    {[
+                        ['GET', '/api/v1/forms', 'List all forms'],
+                        ['GET', '/api/v1/forms/:id/submissions', 'List submissions for a form'],
+                        ['POST', '/api/v1/forms/:slug/submit', 'Submit form answers'],
+                        ['GET', '/api/v1/users', 'List users (admin)'],
+                    ].map(([method, endpoint, desc]) => (
+                        <div key={endpoint} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-900/30 border border-white/[0.04]">
+                            <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded ${method === 'GET' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                                {method}
+                            </span>
+                            <code className="text-xs text-primary font-mono">{endpoint}</code>
+                            <span className="text-xs text-slate-500 ml-auto">{desc}</span>
+                        </div>
+                    ))}
+                </div>
+                <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/10 text-[11px] text-amber-400/80">
+                    ⚠ API key authentication middleware is coming in the next release. Keys are provisioned now for early setup.
                 </div>
             </SectionCard>
         </>

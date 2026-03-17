@@ -103,8 +103,8 @@ async function main() {
     }
 
     // ── Default Admin User ─────────────────────────────────────────────
-    const adminEmail = 'admin@lockforms.local';
-    const adminPassword = 'admin123'; // Development default — change in production!
+    const adminEmail = 'aroshak@gmail.com';
+    const adminPassword = 'Admin123'; // Development default — change in production!
     const passwordHash = await bcrypt.hash(adminPassword, 12);
 
     const superAdminRole = await prisma.role.findUnique({
@@ -496,6 +496,43 @@ async function main() {
         });
         console.log(`  Sample form: ${form.title} (${form.slug})`);
     }
+
+    // ── Development License ────────────────────────────────────────────
+    // Pre-activates a valid development license so the admin area is
+    // accessible out-of-the-box without needing to paste a license key.
+    // This license is signed with the dev RSA key in src/lib/license/validator.ts.
+    // Expires: 2030-01-01 — replace with a real license for production.
+    const devLicenseData = {
+        licensee: 'LockForms Development License',
+        email: 'aroshak@gmail.com',
+        plan: 'enterprise',
+        seats: 999,
+        features: ['ai', 'saml', 'ldap', 'api', 'whitelabel', 'unlimited_forms', 'export', 'audit_log'],
+        hardwareId: null,
+        issuedAt: '2026-03-17T00:00:00.000Z',
+        expiresAt: '2030-01-01T00:00:00.000Z',
+    };
+    const devLicenseStatus = {
+        valid: true,
+        data: devLicenseData,
+        lastCheckedAt: new Date().toISOString(),
+    };
+    await prisma.systemConfig.upsert({
+        where: { key: 'license_status' },
+        update: { value: JSON.stringify(devLicenseStatus) },
+        create: { key: 'license_status', value: JSON.stringify(devLicenseStatus) },
+    });
+    // Also store the signed license key (for re-validation)
+    const devLicenseKey = {
+        data: devLicenseData,
+        signature: 'clraGuxSAmQKpWPCMrssBDh7Oli5lTckeRsfV3WAXfycFp9/UpBjiWg8RN49XBXKOsG+laSz+qqFsNCzosITw551WIMmSbJFs4/OICNkdR0Gl2SmR4g/We6rvsxLJQuAfJ8MlqczFeo9Mq1aLIClj3ZSPoqBI/FeABVH/qNr4pYnlm59AnzSl743G3LyJbubHwycemfl9RR41cPT55FqFvRq6xltwwbACoxqnyk567hy5ED76ZkMz6tBc2R3Y4nft1KFkvUbM2TZcnRC7eatr8DtIoTJZJby6E6HUj1/ocdFfo8wFxyU20YdEpTgnrfn0Zi84tytzc71qwi3HFGCDw==',
+    };
+    await prisma.systemConfig.upsert({
+        where: { key: 'license_key' },
+        update: { value: JSON.stringify(devLicenseKey) },
+        create: { key: 'license_key', value: JSON.stringify(devLicenseKey) },
+    });
+    console.log('  Development license: activated (expires 2030-01-01)');
 
     console.log('');
     console.log('Seed completed successfully.');
